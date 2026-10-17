@@ -1,0 +1,28 @@
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Flux temps réel des commandes (SSE) : pas de mise en tampon, connexion longue.
+	@stream path /api/admin/orders/stream
+	reverse_proxy @stream app:3000 {
+		flush_interval -1
+		transport http {
+			read_timeout 0
+		}
+	}
+
+	reverse_proxy app:3000 {
+		header_up X-Real-IP {remote_host}
+	}
+
+	log {
+		output file /data/access.log {
+			roll_size 20mb
+			roll_keep 10
+		}
+	}
+}
+
+# www → domaine principal
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}

@@ -1,0 +1,145 @@
+@import "tailwindcss";
+
+/* Identité : charbon, orange vif, papier ; titres condensés (back-office) ou serif (site public). */
+@theme {
+  --color-ink: #0b0b0b;
+  --color-cream: #fef8ee;
+  --color-sand: #f3ead9;
+  --color-brick: #cb3522;
+  --color-brand-50: #fff3ee;
+  --color-brand-100: #ffe3d6;
+  --color-brand-400: #f57a54;
+  --color-brand-500: #f1562a; /* orange du site actuel */
+  --color-brand-600: #d9441b; /* boutons à texte blanc (contraste AA) */
+  --color-brand-700: #b23510;
+  --font-display: var(--font-bebas), "Arial Narrow", Impact, sans-serif;
+  --font-serif: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /* Site public : tons chauds (charbon, papier, terre cuite, or). */
+  --color-char: #1f1a17;
+  --color-char-2: #2b2420;
+  --color-paper: #fbf7f1;
+  --color-linen: #f3ebdf;
+  --color-line: #e7dccb;
+  --color-gold: #b88a44;
+  --color-muted: #6f655c;
+}
+
+/*
+ * Thème du site public : titres en serif (Fraunces), plus chaleureux et élégant.
+ * L'espace d'administration garde la police condensée.
+ */
+.site-theme {
+  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  background: var(--color-paper);
+}
+/* Composants communs harmonisés sur le site public (cartes, champs, boutons, couleurs). */
+.site-theme {
+  --color-ink: var(--color-char);
+  --color-cream: var(--color-paper);
+  --color-sand: var(--color-linen);
+}
+/* Dans les couches Tailwind : les classes utilitaires (leading-none, rounded-xl…) restent prioritaires. */
+@layer base {
+  .site-theme :where(h1, h2, h3) {
+    letter-spacing: -0.015em;
+    font-weight: 500;
+    line-height: 1.08;
+    text-wrap: balance;
+  }
+  .site-theme :where(p) {
+    text-wrap: pretty;
+  }
+}
+@layer utilities {
+  .site-theme .card {
+    border-color: var(--color-line);
+    border-radius: 1.5rem;
+    box-shadow: none;
+  }
+  .site-theme .input {
+    border-color: var(--color-line);
+  }
+  .site-theme :is(.btn-primary, .btn-dark, .btn-ghost, .btn-danger) {
+    border-radius: 9999px;
+  }
+  .site-theme .btn-ghost {
+    border-color: var(--color-line);
+  }
+}
+
+/* Petit titre au-dessus des sections (« Sélection de la maison »). */
+@utility eyebrow {
+  @apply font-sans text-xs font-semibold uppercase tracking-[0.22em] text-gold;
+}
+/* Conteneur commun : mêmes marges partout, rythme régulier. */
+@utility wrap {
+  @apply mx-auto w-full max-w-6xl px-4 sm:px-6;
+}
+@utility section-y {
+  @apply py-16 sm:py-24;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    scroll-padding-top: 8rem;
+  }
+  body {
+    @apply bg-cream text-ink antialiased;
+  }
+  :focus-visible {
+    @apply outline-3 outline-offset-2 outline-brand-600;
+  }
+  h1, h2, h3 {
+    @apply font-display tracking-wide;
+  }
+  [hidden] {
+    display: none !important;
+  }
+}
+
+/* Composants réutilisables (Tailwind 4 : @utility, utilisables avec @apply). */
+@utility btn {
+  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-base font-semibold transition
+    active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+}
+@utility btn-primary {
+  @apply btn bg-brand-500 text-ink hover:bg-brand-400;
+}
+@utility btn-dark {
+  @apply btn bg-ink text-white hover:bg-neutral-800;
+}
+@utility btn-ghost {
+  @apply btn border border-neutral-300 bg-white text-ink hover:bg-neutral-50;
+}
+@utility btn-danger {
+  @apply btn bg-red-700 text-white hover:bg-red-800;
+}
+@utility input {
+  @apply block min-h-11 w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-base text-ink
+    placeholder:text-neutral-400 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500/40;
+}
+@utility label {
+  @apply mb-1.5 block text-sm font-semibold text-neutral-800;
+}
+@utility card {
+  @apply rounded-2xl border border-neutral-200 bg-white shadow-sm;
+}
+@utility chip {
+  @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
+}
+
+/* Masque la barre de défilement des catégories tout en gardant le défilement tactile. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

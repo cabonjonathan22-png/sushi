@@ -1,0 +1,16 @@
+node_modules/
+.env
+.env.*
+!.env.example
+# Images téléchargées / générées (iront sur le stockage S3)
+import/cache/
+import/images/
+# Données personnelles (commandes, clients) : jamais dans le dépôt
+import/private/
+# (données PostgreSQL locales : hors du projet, voir scripts/db-local.mjs)
+.next/
+next-env.d.ts
+storage/
+src/generated/
+*.tsbuildinfo
+deploy/.env
