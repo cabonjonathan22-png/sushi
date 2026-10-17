@@ -10,7 +10,7 @@
     "dev": "next dev",
     "build": "next build",
     "postinstall": "prisma generate",
-    "vercel-build": "prisma generate && prisma migrate deploy && next build",
+    "vercel-build": "node scripts/vercel-build.mjs",
     "start": "next start",
     "db:local": "node scripts/db-local.mjs",
     "db:migrate": "prisma migrate deploy",

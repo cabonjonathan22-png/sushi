@@ -6,11 +6,16 @@ un stockage d'images S3 et un service d'e-mail.
 
 ## 1. Base de données PostgreSQL
 
-Créer une base PostgreSQL 16 ou plus récente, par exemple Neon (région Francfort ou Paris), Supabase ou Scaleway.
+Le plus simple : dans le projet Vercel, ouvrir **Storage → Create Database → Neon** (région Francfort),
+puis **Connect** au projet. Vercel crée alors tout seul `DATABASE_URL` et `DATABASE_URL_UNPOOLED`.
+Il reste à cliquer sur **Redeploy**. Sans base configurée, la compilation réussit quand même, mais le
+site affiche une erreur.
+
+Une autre base PostgreSQL 16 ou plus récente fonctionne aussi (Supabase, Scaleway…).
 
 - `DATABASE_URL` : l'adresse **avec pooler** (connexions courtes, adaptée au serverless).
-- `DATABASE_URL_DIRECT` : l'adresse **directe** (sans pooler). Elle sert au temps réel des
-  commandes (`LISTEN`) et aux migrations.
+- `DATABASE_URL_DIRECT` (ou `DATABASE_URL_UNPOOLED` avec Neon) : l'adresse **directe**, sans pooler.
+  Elle sert au temps réel des commandes (`LISTEN`) et aux migrations.
 
 Les migrations s'appliquent automatiquement à chaque déploiement (`npm run vercel-build`).
 

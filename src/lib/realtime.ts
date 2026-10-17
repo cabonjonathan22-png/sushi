@@ -20,7 +20,7 @@ const state = (g.__ysRealtime ??= { bus: new EventEmitter().setMaxListeners(500)
 
 async function connect(): Promise<void> {
   // LISTEN exige une connexion directe (pas un pooler type PgBouncer / Neon « -pooler »).
-  const client = new pg.Client({ connectionString: process.env.DATABASE_URL_DIRECT || process.env.DATABASE_URL });
+  const client = new pg.Client({ connectionString: process.env.DATABASE_URL_DIRECT || process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL });
   client.on("notification", (msg) => {
     if (msg.channel !== "orders" || !msg.payload) return;
     try {
