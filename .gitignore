@@ -15,3 +15,8 @@ storage/tmp/
 src/generated/
 *.tsbuildinfo
 deploy/.env
+
+# Guide de formation : fichiers intermédiaires
+scripts/formation/shots/
+scripts/formation/img/
+scripts/formation/*.html

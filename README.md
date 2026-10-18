@@ -12,6 +12,7 @@ Site de commande en ligne (retrait, livraison, sur place) et back-office sur mes
 | Mise en route des imprimantes (BizPrint, Star, Epson, navigateur…) | [docs/impression.md](docs/impression.md) |
 | Mise en ligne, bascule depuis WordPress, sauvegardes | [docs/deploiement.md](docs/deploiement.md) |
 | Mise en ligne sur Vercel (base Neon, images R2) | [docs/deploiement-vercel.md](docs/deploiement-vercel.md) |
+| Formation de l'équipe (PDF illustré, 46 pages) | [docs/Guide-formation-Yaoma-Sushi.pdf](docs/Guide-formation-Yaoma-Sushi.pdf) |
 | Caisse / TVA, RGPD, alcool, allergènes | [docs/conformite.md](docs/conformite.md) |
 | Intégrations (caisse, livraison…) | `/api/v1/docs` (OpenAPI 3.1 : `/api/v1/openapi.json`) |
 | Historique du projet | [docs/phase-0-analyse.md](docs/phase-0-analyse.md), [docs/phase-1-import.md](docs/phase-1-import.md) |
