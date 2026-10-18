@@ -10,7 +10,8 @@ import/private/
 # (données PostgreSQL locales : hors du projet, voir scripts/db-local.mjs)
 .next/
 next-env.d.ts
-storage/
+# Photos (storage/) versionnées : livrées avec le site sur Vercel. Les envois ultérieurs vont sur S3.
+storage/tmp/
 src/generated/
 *.tsbuildinfo
 deploy/.env

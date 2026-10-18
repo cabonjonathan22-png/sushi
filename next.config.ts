@@ -63,6 +63,9 @@ function legacyCatalog(): [string, string][] {
 
 const config: NextConfig = {
   output: "standalone",
+  // Photos du dossier storage/ livrées avec le site (hébergement sans disque comme Vercel,
+  // tant qu'aucun stockage S3 n'est configuré).
+  outputFileTracingIncludes: { "/media/[...key]": ["./storage/**/*"] },
   // Les anciennes URL WordPress finissent par « / » : on les redirige nous-mêmes en un seul 301
   // (sinon Next.js ferait d'abord un 308 vers l'URL sans « / », puis notre 301).
   skipTrailingSlashRedirect: true,

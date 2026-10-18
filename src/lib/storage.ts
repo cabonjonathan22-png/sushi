@@ -43,6 +43,8 @@ export async function putFile(key: string, body: Buffer, contentType: string): P
     }));
     return;
   }
+  // Hébergement serverless : le disque n'est pas conservé (ni accessible en écriture).
+  if (process.env.VERCEL) throw new Error("Envoi de photos impossible sans stockage S3 : voir docs/deploiement-vercel.md (Cloudflare R2).");
   const file = path.join(/* turbopackIgnore: true */ LOCAL_ROOT, k);
   await mkdir(path.dirname(/* turbopackIgnore: true */ file), { recursive: true });
   await writeFile(file, body);
