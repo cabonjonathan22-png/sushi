@@ -10,8 +10,22 @@ function createClient() {
   return new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
 }
 
-export const db = globalForPrisma.prisma ?? createClient();
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;
+function client(): PrismaClient {
+  if (!globalForPrisma.prisma) globalForPrisma.prisma = createClient();
+  return globalForPrisma.prisma;
+}
+
+/**
+ * Créé à la première requête (et non à l'import) : la compilation (« next build »)
+ * fonctionne même sans base configurée, par exemple au premier déploiement Vercel.
+ */
+export const db = new Proxy({} as PrismaClient, {
+  get(_, prop) {
+    const c = client();
+    const value = Reflect.get(c, prop, c);
+    return typeof value === "function" ? value.bind(c) : value;
+  },
+});
 
 export type Db = typeof db;
 /** Client utilisable dans une transaction interactive. */

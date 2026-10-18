@@ -20,12 +20,15 @@ export async function availableLocales(): Promise<string[]> {
 
 /** Langue de la requête : choix du client (cookie) > langue de l'appareil > langue du restaurant. */
 export const getLocale = cache(async (): Promise<string> => {
+  // Cookies et en-têtes lus AVANT la base : la page est alors rendue à la demande
+  // (jamais pré-rendue à la compilation, qui se fait sans base de données).
+  const chosen = (await cookies()).get(LANG_COOKIE)?.value;
+  const acceptLanguage = (await headers()).get("accept-language");
   const c = await getConfig();
   const available = await availableLocales();
-  const chosen = (await cookies()).get(LANG_COOKIE)?.value;
   if (chosen && available.includes(chosen)) return chosen;
   if (c.region.autoDetect) {
-    const device = matchAcceptLanguage((await headers()).get("accept-language"), available);
+    const device = matchAcceptLanguage(acceptLanguage, available);
     if (device) return device;
   }
   return c.region.defaultLocale;

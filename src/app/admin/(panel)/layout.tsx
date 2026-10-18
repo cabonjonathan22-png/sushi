@@ -85,7 +85,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <div className="max-h-[80dvh] overflow-y-auto p-4 pt-0">{switcher}{nav}{account}</div>
         </details>
       </header>
-      <div className="min-w-0 p-4 sm:p-6 lg:p-8">{children}</div>
+      <main className="min-w-0 p-4 sm:p-6 lg:p-8">{children}</main>
     </div>
   );
 }
