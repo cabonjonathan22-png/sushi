@@ -3,6 +3,7 @@
  *
  *   npm run db:seed -- --email patron@exemple.fr --name "Le patron" --role OWNER
  *   npm run db:seed                       # super-admin (ADMIN_EMAIL) si aucun compte n'existe
+ *   SEED_PASSWORD=… npm run db:seed -- …    # mot de passe imposé (ex. même compte en local et en production)
  *
  * Le mot de passe provisoire est affiché UNE fois ; la double authentification
  * sera demandée à la première connexion (super-admin / propriétaire).
@@ -30,7 +31,9 @@ async function main() {
     console.log(`Le compte ${email} existe déjà.`);
     return;
   }
-  const password = randomBytes(9).toString("base64url");
+  // Mot de passe imposé (même compte sur plusieurs bases) via SEED_PASSWORD, sinon tiré au hasard.
+  const password = process.env.SEED_PASSWORD || randomBytes(12).toString("base64url");
+  if (password.length < 10) throw new Error("SEED_PASSWORD : 10 caractères minimum.");
   const user = await db.user.create({ data: { email, name, role, passwordHash: await hashPassword(password) } });
   if (role === "MANAGER" || role === "EMPLOYEE") {
     const restaurants = await db.restaurant.findMany({ select: { id: true } });
