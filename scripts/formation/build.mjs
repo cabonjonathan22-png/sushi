@@ -3,7 +3,7 @@
 import { createRequire } from "node:module";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
-import { META, PARTS } from "./content.mjs";
+const { META, PARTS } = await import(process.env.CONTENT ?? "./content.mjs");
 const req = createRequire(new URL("../../package.json", import.meta.url));
 const sharp = req("sharp");
 const { chromium } = req("playwright-core");
@@ -132,6 +132,7 @@ strong { font-weight: 600; }
 .lead { color: #e9e0d3; font-size: 10.8pt; margin: 0; }
 .block { margin: 0 0 9mm; }
 .block.has-img { break-inside: avoid; }
+.part:last-child .block:last-child { break-before: page; } /* glossaire entier sur sa page */
 .block h2 { font-size: 16pt; margin: 0 0 2.5mm; display: flex; gap: 3mm; align-items: baseline; break-after: avoid; }
 .sec { font-family: Inter, Arial, sans-serif; font-size: 9pt; font-weight: 600; color: var(--gold); }
 figure { margin: 2mm 0 3mm; break-inside: avoid; display: flex; justify-content: center; }
@@ -162,6 +163,13 @@ figure.row { gap: 6mm; align-items: flex-start; }
 .check li::marker { content: "☐  "; }
 .gloss dt { font-weight: 600; margin-top: 2.5mm; break-after: avoid; }
 .gloss { margin-bottom: 0; }
+.steps { counter-reset: st; list-style: none; padding: 0; margin: 2mm 0 3mm; display: grid; gap: 1.8mm; }
+.steps li { counter-increment: st; display: grid; grid-template-columns: 7mm 1fr; gap: 2mm; }
+.steps li::before { content: counter(st); width: 5.6mm; height: 5.6mm; border-radius: 1.4mm; background: var(--char); color: #fff; font-weight: 700; font-size: 8pt; display: grid; place-items: center; margin-top: 0.3mm; }
+.howto { border: 1px solid var(--line); border-radius: 3mm; padding: 4mm 5mm; margin: 0 0 5mm; break-inside: avoid; }
+.howto h3 { font-size: 13pt; margin: 0 0 1mm; }
+.howto .where { font-size: 8.8pt; color: var(--muted); margin-bottom: 1mm; }
+.menu-tbl td:first-child { white-space: nowrap; font-weight: 600; }
 .gloss dd { margin: 0.5mm 0 0 0; color: #3c342e; }
 `;
 
@@ -186,8 +194,8 @@ h1 { font-family: Fraunces, Georgia, serif; font-weight: 500; font-size: 40pt; l
 </style></head><body><div class="c"><div class="glow"></div>
 <img src="img/site-accueil-hero.jpg" alt="">
 <div class="t"><div class="brand">Yaoma <em>Sushi</em></div>
-<div class="k">Site &amp; back-office</div><h1>${esc(META.title)}</h1>
-<p class="s">Le site de commande et le back-office, écran par écran : service au quotidien, carte, réglages et comptabilité.</p></div>
+<div class="k">${esc(META.coverKicker ?? "Site & back-office")}</div><h1>${esc(META.title)}</h1>
+<p class="s">${esc(META.coverText ?? "Le site de commande et le back-office, écran par écran : service au quotidien, carte, réglages et comptabilité.")}</p></div>
 <div class="f">${esc(META.version)}</div></div></body></html>`;
 
 // Visuel de couverture : la photo du bandeau d'accueil.

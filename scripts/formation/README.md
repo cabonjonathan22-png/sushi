@@ -21,6 +21,9 @@ Régénère `docs/Guide-formation-Yaoma-Sushi.pdf` à partir de vraies captures 
 
    ```bash
    node scripts/formation/build.mjs docs/Guide-formation-Yaoma-Sushi.pdf
+   CONTENT=./content-backoffice.mjs node scripts/formation/build.mjs docs/Guide-backoffice-Yaoma-Sushi.pdf
    ```
+
+   `content-backoffice.mjs` (guide du back-office) reprend les écrans de `content.mjs` et y ajoute les fiches « pas à pas ».
 
 Ensuite, supprimer la base de formation : `dropdb -h localhost -p 5433 -U yaoma yaoma_formation`.
