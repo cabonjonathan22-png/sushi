@@ -79,6 +79,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
               <div className="flex justify-between"><dt>Sous-total</dt><dd>{euros(order.subtotalCents)}</dd></div>
               {order.extrasDiscountCents > 0 && <div className="flex justify-between"><dt>Petits plus offerts</dt><dd>−{euros(order.extrasDiscountCents)}</dd></div>}
               {order.discountCents > 0 && <div className="flex justify-between"><dt>Remise {order.promoCode}</dt><dd>−{euros(order.discountCents)}</dd></div>}
+              {order.loyaltyDiscountCents > 0 && <div className="flex justify-between"><dt>Fidélité : {order.loyaltyRewardName} ({order.loyaltyPointsSpent} pts)</dt><dd>−{euros(order.loyaltyDiscountCents)}</dd></div>}
               {order.mode === "DELIVERY" && <div className="flex justify-between"><dt>Livraison</dt><dd>{euros(order.deliveryFeeCents)}</dd></div>}
               <div className="flex justify-between text-xl font-bold"><dt>Total TTC</dt><dd>{euros(order.totalCents)}</dd></div>
               {vat.map((v) => (

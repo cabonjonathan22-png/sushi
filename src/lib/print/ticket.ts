@@ -54,6 +54,7 @@ export function buildTicket(o: FullOrder, copyLabel?: string): Ticket {
   L.push({ kind: "rule" });
   if (o.extrasDiscountCents) L.push({ kind: "pair", left: "Petits plus offerts", right: `-${euros(o.extrasDiscountCents)}` });
   if (o.discountCents) L.push({ kind: "pair", left: `Remise ${o.promoCode}`.trim(), right: `-${euros(o.discountCents)}` });
+  if (o.loyaltyDiscountCents) L.push({ kind: "pair", left: `Fidélité ${o.loyaltyRewardName}`.trim(), right: `-${euros(o.loyaltyDiscountCents)}` });
   if (o.mode === "DELIVERY") L.push({ kind: "pair", left: "Livraison", right: o.deliveryFeeCents ? euros(o.deliveryFeeCents) : "offerte" });
   L.push({ kind: "pair", left: "TOTAL TTC", right: euros(o.totalCents), bold: true });
   L.push({ kind: "text", text: PAYMENT_METHOD_LABELS[o.paymentMethod] });

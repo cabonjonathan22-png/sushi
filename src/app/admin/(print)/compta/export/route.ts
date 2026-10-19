@@ -58,7 +58,7 @@ export async function GET(req: Request) {
 
   const rates = [...new Set(orders.flatMap((o) => vatOf(o.vatBreakdown).map((v) => v.rate)))].sort((a, b) => a - b);
   const header = ["Date de service", "Heure", "Restaurant", "Référence", "N° séquentiel", "Statut", "Mode", "Moyen de paiement", "Paiement", "Client",
-    ...rates.flatMap((r) => [`HT ${r / 100}%`, `TVA ${r / 100}%`]), "Total HT", "Total TVA", "Remise", "Petits plus offerts", "Frais livraison", "Total TTC", "Passée le"];
+    ...rates.flatMap((r) => [`HT ${r / 100}%`, `TVA ${r / 100}%`]), "Total HT", "Total TVA", "Remise", "Remise fidélité", "Petits plus offerts", "Frais livraison", "Total TTC", "Passée le"];
   const rows = orders.map((o) => {
     const vat = vatOf(o.vatBreakdown);
     return [
@@ -66,7 +66,7 @@ export async function GET(req: Request) {
       STATUS_LABELS[o.status], MODE_LABELS[o.mode], PAYMENT_METHOD_LABELS[o.paymentMethod], PAYMENT_STATUS_LABELS[o.paymentStatus], o.customerName,
       ...rates.flatMap((r) => { const v = vat.find((x) => x.rate === r); return [centsToEuros(v?.baseCents ?? 0), centsToEuros(v?.vatCents ?? 0)]; }),
       centsToEuros(vat.reduce((a, v) => a + v.baseCents, 0)), centsToEuros(vat.reduce((a, v) => a + v.vatCents, 0)),
-      centsToEuros(o.discountCents), centsToEuros(o.extrasDiscountCents), centsToEuros(o.deliveryFeeCents), centsToEuros(o.totalCents), formatDateTime(o.placedAt),
+      centsToEuros(o.discountCents), centsToEuros(o.loyaltyDiscountCents), centsToEuros(o.extrasDiscountCents), centsToEuros(o.deliveryFeeCents), centsToEuros(o.totalCents), formatDateTime(o.placedAt),
     ];
   });
 

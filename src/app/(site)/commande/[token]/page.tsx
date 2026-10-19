@@ -5,6 +5,8 @@ import { ReorderButton } from "@/components/order/ReorderButton";
 import { ResumePayment } from "@/components/order/ResumePayment";
 import { telHref } from "@/components/site/SiteChrome";
 import { getI18n } from "@/i18n/server";
+import { readConfig } from "@/lib/config";
+import { pointsFor } from "@/lib/loyalty-rules";
 import type { MessageKey } from "@/i18n/fr";
 import { db } from "@/lib/db";
 import { euros } from "@/lib/money";
@@ -30,6 +32,17 @@ export default async function TrackingPage({ params, searchParams }: { params: P
   });
   if (!o) notFound();
 
+  // Fidélité : points gagnés (commande remise) ou à gagner, et récompense utilisée.
+  const loyaltySettings = (await readConfig()).loyalty;
+  let loyaltyLine = "";
+  if (o.customerId && loyaltySettings.enabled && o.source !== "IMPORT_WP" && o.status !== "CANCELLED") {
+    const earned = (await db.loyaltyTransaction.aggregate({ where: { orderId: o.id, kind: "EARN" }, _sum: { points: true } }))._sum.points ?? 0;
+    const i18n = await getI18n();
+    loyaltyLine = [
+      o.loyaltyPointsSpent > 0 ? i18n.t("loyalty.spent", { name: o.loyaltyRewardName, points: o.loyaltyPointsSpent }) : "",
+      earned > 0 ? i18n.t("loyalty.earned", { points: earned }) : i18n.t("loyalty.toEarn", { points: pointsFor(o.totalCents - o.deliveryFeeCents, loyaltySettings.pointsPerEuro) }),
+    ].filter(Boolean).join(" ");
+  }
   const { t, locale } = await getI18n();
   const steps = STEPS[o.mode] as readonly string[];
   const current = steps.indexOf(o.status);
@@ -91,10 +104,12 @@ export default async function TrackingPage({ params, searchParams }: { params: P
         <dl className="mt-2 space-y-1 border-t border-neutral-200 pt-2">
           {o.extrasDiscountCents > 0 && <div className="flex justify-between"><dt>{t("track.extras")}</dt><dd>−{euros(o.extrasDiscountCents)}</dd></div>}
           {o.discountCents > 0 && <div className="flex justify-between"><dt>{t("track.discount", { code: o.promoCode })}</dt><dd>−{euros(o.discountCents)}</dd></div>}
+          {o.loyaltyDiscountCents > 0 && <div className="flex justify-between"><dt>{t("loyalty.discount", { name: o.loyaltyRewardName })}</dt><dd>−{euros(o.loyaltyDiscountCents)}</dd></div>}
           {o.mode === "DELIVERY" && <div className="flex justify-between"><dt>{t("checkout.delivery")}</dt><dd>{o.deliveryFeeCents ? euros(o.deliveryFeeCents) : t("checkout.deliveryFree")}</dd></div>}
           <div className="flex justify-between text-xl font-bold"><dt>{t("checkout.total")}</dt><dd>{euros(o.totalCents)}</dd></div>
           <div className="flex justify-between text-sm text-neutral-700"><dt>{t(`pay.${o.paymentMethod}`)}</dt><dd>{t(`payStatus.${o.paymentStatus}`)}</dd></div>
         </dl>
+        {loyaltyLine && <p className="mt-3 rounded-xl bg-linen p-3 text-sm">{loyaltyLine}</p>}
         {o.mode === "DELIVERY" ? (
           <p className="mt-3 text-sm text-neutral-700">{t("track.deliveryTo", { address: `${o.addressStreet}${o.addressExtra ? `, ${o.addressExtra}` : ""}, ${o.postalCode} ${o.city}` })}</p>
         ) : (

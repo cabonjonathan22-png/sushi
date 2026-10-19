@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { readConfig } from "@/lib/config";
 import { deliveryTowns, listRestaurants } from "@/lib/restaurants";
 import { appUrl } from "@/lib/seo";
 
@@ -13,6 +14,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/livraison`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
     // Une page par commune livrée (référencement local « livraison à … »).
     ...towns.map((t) => ({ url: `${base}/livraison/${t.slug}`, lastModified: now, changeFrequency: "monthly" as const, priority: 0.7 })),
+    ...((await readConfig()).loyalty.enabled ? [{ url: `${base}/fidelite`, lastModified: now, changeFrequency: "monthly" as const, priority: 0.6 }] : []),
     ...(restaurants.length > 1 ? [{ url: `${base}/restaurants`, lastModified: now, changeFrequency: "monthly" as const, priority: 0.8 }] : []),
     ...restaurants.flatMap((r) => [
       { url: `${base}/restaurants/${r.slug}`, lastModified: now, changeFrequency: "monthly" as const, priority: 0.9 },

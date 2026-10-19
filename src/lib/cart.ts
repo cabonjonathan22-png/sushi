@@ -1,4 +1,5 @@
 import { allocate, money, vatBreakdown, type VatLine } from "./money";
+import { rewardDiscount, rewardProblem, type RewardProblem, type RewardRule } from "./loyalty-rules";
 import { deliveryFee, minimumFor, missingForMinimum, type Period, type ZoneRule } from "./zones";
 
 /**
@@ -90,6 +91,9 @@ export interface PricingContext {
   now: Date;
   /** Quantité maximum par ligne (Configuration ; défaut 50). */
   maxLineQuantity?: number;
+  /** Récompense de fidélité choisie par le client connecté, et son solde de points. */
+  reward?: RewardRule | null;
+  pointsBalance?: number;
 }
 
 export interface PricedLine {
@@ -149,6 +153,10 @@ export interface PricedCart {
   containsAlcohol: boolean;
   promoApplied: string | null;
   promoError: string | null;
+  /** Remise de la récompense de fidélité (comprise dans le total). */
+  loyaltyDiscountCents: number;
+  rewardApplied: { id: string; name: string; pointsCost: number } | null;
+  rewardError: RewardProblem | null;
 }
 
 export const MAX_LINE_QUANTITY = 50;
@@ -172,9 +180,31 @@ export function promoProblem(promo: PromoRule, restaurantId: string, subtotalCen
   return null;
 }
 
+/** Le produit offert par une récompense peut-il être ajouté tel quel (sans choix obligatoire) ? */
+function freeProductLine(p: CatalogProduct | undefined, ctx: PricingContext): CartLineInput | null {
+  if (!p || !p.active || p.outOfStock || !availableFor(p, ctx.mode)) return null;
+  if ((ctx.period === "LUNCH" && p.availableLunch === false) || (ctx.period === "DINNER" && p.availableDinner === false)) return null;
+  if (p.isAlcohol && ctx.mode === "DELIVERY" && ctx.noAlcoholDelivery) return null;
+  if (p.optionGroups.some((g) => g.minSelect > 0)) return null;
+  const variants = p.variants.filter((v) => v.active && !v.outOfStock).sort((a, b) => a.priceCents - b.priceCents);
+  if (p.variants.length && !variants.length) return null;
+  return { productId: p.id, variantId: variants[0]?.id ?? null, optionIds: [], quantity: 1 };
+}
+
 export function priceCart(input: CartLineInput[], catalog: Map<string, CatalogProduct>, ctx: PricingContext): PricedCart {
   const errors: CartError[] = [];
   const lines: PricedLine[] = [];
+
+  // Récompense « produit offert » : le produit est ajouté au panier s'il n'y est pas déjà.
+  let rewardError: RewardProblem | null = null;
+  if (ctx.reward?.type === "FREE_PRODUCT") {
+    const pid = ctx.reward.productId ?? "";
+    if (!input.some((l) => l.productId === pid)) {
+      const extra = freeProductLine(catalog.get(pid), ctx);
+      if (extra) input = [...input, extra];
+      else rewardError = "PRODUCT_UNAVAILABLE";
+    }
+  }
 
   if (!input.length) errors.push({ code: "EMPTY", message: "Votre panier est vide." });
 
@@ -331,11 +361,23 @@ export function priceCart(input: CartLineInput[], catalog: Map<string, CatalogPr
     }
   }
 
-  const total = subtotal - discount + fee;
+  // Récompense de fidélité : après le code promo, plafonnée à ce qui reste à payer.
+  let loyalty = 0;
+  let rewardApplied: PricedCart["rewardApplied"] = null;
+  if (ctx.reward && !rewardError) {
+    rewardError = rewardProblem(ctx.reward, ctx.pointsBalance ?? 0, subtotal);
+    if (!rewardError) {
+      const freeLine = ctx.reward.type === "FREE_PRODUCT" ? lines.find((l) => l.productId === ctx.reward!.productId) : undefined;
+      loyalty = rewardDiscount(ctx.reward, subtotal - discount, freeLine?.unitPriceCents ?? 0);
+      rewardApplied = { id: ctx.reward.id, name: ctx.reward.name, pointsCost: ctx.reward.pointsCost };
+    }
+  }
 
-  // TVA : petits plus offerts déduits de leurs lignes ; remise promo répartie au prorata ;
+  const total = subtotal - discount - loyalty + fee;
+
+  // TVA : petits plus offerts déduits de leurs lignes ; remises (promo, fidélité) réparties au prorata ;
   // frais de livraison (accessoires) ventilés au prorata des taux des produits.
-  const lineDiscounts = allocate(discount, lines.map((l) => l.totalCents - l.freeCents));
+  const lineDiscounts = allocate(discount + loyalty, lines.map((l) => l.totalCents - l.freeCents));
   const netLines = lines.map((l, i) => ({ rate: l.vatRate, ttcCents: l.totalCents - l.freeCents - lineDiscounts[i]! }));
   const feeParts = allocate(fee, netLines.map((l) => l.ttcCents));
   const vat = vatBreakdown([...netLines, ...netLines.map((l, i) => ({ rate: l.rate, ttcCents: feeParts[i]! }))]);
@@ -359,5 +401,8 @@ export function priceCart(input: CartLineInput[], catalog: Map<string, CatalogPr
     containsAlcohol: lines.some((l) => l.isAlcohol),
     promoApplied,
     promoError,
+    loyaltyDiscountCents: loyalty,
+    rewardApplied,
+    rewardError,
   };
 }

@@ -41,12 +41,14 @@ export function Wordmark({ name, className = "" }: { name: string; className?: s
   );
 }
 
-export function SiteHeader({ brand, phone, country, showAccount = true, multiRestaurant, t, locale, languages }: {
+export function SiteHeader({ brand, phone, country, showAccount = true, multiRestaurant, loyalty = false, t, locale, languages }: {
   brand: string;
   phone?: string;
   country?: string;
   showAccount?: boolean;
   multiRestaurant: boolean;
+  /** Carte de fidélité active : lien « Fidélité ». */
+  loyalty?: boolean;
   t: T;
   locale: string;
   languages: string[];
@@ -55,6 +57,7 @@ export function SiteHeader({ brand, phone, country, showAccount = true, multiRes
     { href: "/commander", label: t("nav.menu") },
     ...(multiRestaurant ? [{ href: "/restaurants", label: t("nav.restaurants") }] : []),
     { href: "/livraison", label: t("nav.delivery") },
+    ...(loyalty ? [{ href: "/fidelite", label: t("nav.loyalty") }] : []),
     ...(showAccount ? [{ href: "/compte", label: t("nav.account") }] : []),
   ];
   const switcher = languages.length > 1 && <LanguageSwitcher current={locale} languages={languages} label={t("nav.language")} />;
@@ -120,13 +123,14 @@ export interface FooterOptions {
   googleReviewUrl: string;
 }
 
-export function SiteFooter({ brand, restaurant, restaurants, country, options, showAccount = true, t, locale }: {
+export function SiteFooter({ brand, restaurant, restaurants, country, options, showAccount = true, loyalty = false, t, locale }: {
   brand: string;
   restaurant: PublicRestaurant | null;
   restaurants: { slug: string; name: string; city: string }[];
   country?: string;
   options: FooterOptions;
   showAccount?: boolean;
+  loyalty?: boolean;
   t: T;
   locale: string;
 }) {
@@ -177,6 +181,7 @@ export function SiteFooter({ brand, restaurant, restaurants, country, options, s
             <li><Link href="/livraison" className={link}>{t("footer.zones")}</Link></li>
             {restaurants.length > 1 && <li><Link href="/restaurants" className={link}>{t("nav.restaurants")}</Link></li>}
             {showAccount && <li><Link href="/compte" className={link}>{t("nav.account")}</Link></li>}
+            {loyalty && <li><Link href="/fidelite" className={link}>{t("loyalty.title")}</Link></li>}
             <li><Link href="/allergenes" className={link}>{t("footer.allergens")}</Link></li>
           </ul>
         </nav>

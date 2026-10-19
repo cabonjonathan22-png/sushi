@@ -2,6 +2,7 @@ import type Stripe from "stripe";
 import { audit } from "../audit";
 import { readConfig } from "../config";
 import { db, type Tx } from "../db";
+import { onLoyaltyRefund, onLoyaltyStatus } from "../loyalty";
 import { canTransition, type OrderStatus } from "../order-status";
 import { stripeFor } from "../payments/stripe";
 import { onOrderConfirmed, onStatusChanged } from "./notify";
@@ -47,6 +48,8 @@ async function setStatus(tx: Tx, orderId: string, to: OrderStatus, actor: ActorI
   await tx.orderStatusEvent.create({ data: { orderId, from: order.status, to, userId: actor.userId, actor: actor.label, note: note.slice(0, 300) } });
   await audit({ userId: actor.userId, actor: actor.label, action: "order.status", entityType: "Order", entityId: orderId,
     restaurantId: order.restaurantId, data: { from: order.status, to, note }, ip: actor.ip }, tx);
+  // Fidélité : points gagnés à la remise, rendus / retirés à l'annulation.
+  await onLoyaltyStatus(tx, updated, to);
   if (order.status === "PENDING_PAYMENT" && to === "NEW") await onOrderConfirmed(tx, updated);
   else await onStatusChanged(tx, updated, to);
   return updated;
@@ -124,6 +127,7 @@ export async function refundOrder(orderId: string, amountCents: number, reason: 
     });
     const total = already + amountCents;
     await tx.order.update({ where: { id: orderId }, data: { paymentStatus: total >= order.totalCents ? "REFUNDED" : "PARTIALLY_REFUNDED" } });
+    await onLoyaltyRefund(tx, order, total);
     await audit({ userId: actor.userId, actor: actor.label, action: "order.refund", entityType: "Order", entityId: orderId,
       restaurantId: order.restaurantId, data: { creditNumber, amount: amountCents, reason, stripeRefundId }, ip: actor.ip }, tx);
     return refund;

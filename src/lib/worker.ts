@@ -5,6 +5,7 @@ import { db } from "./db";
 import { customerConfirmation, customerStatusChange, restaurantNewOrder } from "./emails";
 import { runJobs, type JobHandler, type JobType } from "./jobs";
 import { sendMail } from "./mail";
+import { expireInactivePoints } from "./loyalty";
 import { loadOrder } from "./orders/load";
 import { cancelAbandonedPayments } from "./orders/manage";
 import { refreshBizPrintJobs, submitBizPrint } from "./print/bizprint";
@@ -56,7 +57,7 @@ export async function drainJobs(): Promise<number> {
  * périodique passe par une tâche planifiée (/api/cron).
  */
 export async function maintenance(): Promise<void> {
-  await Promise.allSettled([refreshBizPrintJobs(), cancelAbandonedPayments(), purgeSessions(), purgeRateLimits(), anonymizeInactiveCustomers()]);
+  await Promise.allSettled([refreshBizPrintJobs(), cancelAbandonedPayments(), purgeSessions(), purgeRateLimits(), anonymizeInactiveCustomers(), expireInactivePoints()]);
   await drainJobs();
   // Traduction d'avance de la carte dans les langues proposées (dans la limite du quota du jour).
   await import("./translation-sources").then((m) => m.pretranslateAll()).catch((e) => console.error("[maintenance] traduction", e));
@@ -90,7 +91,7 @@ export function startWorker() {
   }, 5 * 60_000).unref();
 
   setInterval(() => {
-    Promise.all([purgeSessions(), purgeRateLimits(), anonymizeInactiveCustomers()]).catch((e) => console.error("[worker] purge", e));
+    Promise.all([purgeSessions(), purgeRateLimits(), anonymizeInactiveCustomers(), expireInactivePoints()]).catch((e) => console.error("[worker] purge", e));
   }, 60 * 60_000).unref();
 
   // Traduction d'avance de la carte (quota gratuit du jour), au démarrage puis toutes les 6 h.

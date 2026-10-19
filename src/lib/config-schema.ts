@@ -106,6 +106,16 @@ export const ConfigSchema = z.object({
     /** Comptes clients (historique, adresses) proposés sur le site. */
     accountsEnabled: z.boolean().default(true),
   }).prefault({}),
+  /** Carte de fidélité : points gagnés à chaque commande, échangés contre des récompenses. */
+  loyalty: z.object({
+    enabled: z.boolean().default(false),
+    /** Points gagnés par euro payé (hors frais de livraison). */
+    pointsPerEuro: z.number().int().min(1).max(100).default(1),
+    /** Points perdus après N mois sans commande (0 = jamais). */
+    expiryMonths: z.number().int().min(0).max(60).default(12),
+    /** Points offerts à la création du compte client. */
+    signupBonus: z.number().int().min(0).max(10_000).default(0),
+  }).prefault({}),
   /**
    * Plan de comptes de l'export « expert-comptable » (écritures au format FEC).
    * Valeurs par défaut du plan comptable général, à faire valider par l'expert-comptable.

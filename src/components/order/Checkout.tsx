@@ -8,6 +8,7 @@ import { errorText, useI18n } from "@/i18n/client";
 import { euros, vatLabel } from "@/lib/money";
 import { citiesForPostalCode, findZone } from "@/lib/zones";
 import { useCart } from "./cart-store";
+import { LoyaltyBox, type LoyaltyPreview } from "./LoyaltyBox";
 import { StripePay } from "./StripePay";
 import type { ClientRestaurant } from "./types";
 
@@ -51,7 +52,8 @@ export function Checkout({ restaurant, account, options = { requireEmail: true, 
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [saveAddress, setSaveAddress] = useState(true);
-  const [preview, setPreview] = useState<PricedCart | null>(null);
+  const [preview, setPreview] = useState<(PricedCart & { loyalty?: LoyaltyPreview | null }) | null>(null);
+  const [rewardId, setRewardId] = useState("");
   const [errors, setErrors] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [payment, setPayment] = useState<{ clientSecret: string; publishableKey: string; token: string; amount: number } | null>(null);
@@ -109,11 +111,11 @@ export function Checkout({ restaurant, account, options = { requireEmail: true, 
       fetch("/api/checkout/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ restaurantSlug: restaurant.slug, mode, period: slot?.period ?? "LUNCH", zoneId: zone?.id ?? null, promoCode: promoCode || undefined, lines }),
+        body: JSON.stringify({ restaurantSlug: restaurant.slug, mode, period: slot?.period ?? "LUNCH", zoneId: zone?.id ?? null, promoCode: promoCode || undefined, rewardId: rewardId || undefined, lines }),
       }).then((r) => r.json()).then(setPreview).catch(() => {});
     }, 250);
     return () => clearTimeout(timer);
-  }, [lines, mode, slot?.period, zone?.id, promoCode, restaurant.slug]);
+  }, [lines, mode, slot?.period, zone?.id, promoCode, rewardId, restaurant.slug]);
 
   if (!mounted) return <p className="px-4 py-16 text-center text-neutral-600">{t("checkout.loading")}</p>;
   if (!cart.items.length && !payment) {
@@ -148,7 +150,7 @@ export function Checkout({ restaurant, account, options = { requireEmail: true, 
       body: JSON.stringify({
         restaurantSlug: restaurant.slug, mode, slotStart: slot!.start, lines, customer,
         address: mode === "DELIVERY" ? address : null, notes, paymentMethod,
-        promoCode: promoCode || undefined, ageConfirmed, acceptTerms, saveAddress,
+        promoCode: promoCode || undefined, rewardId: (preview?.rewardApplied && rewardId) || undefined, ageConfirmed, acceptTerms, saveAddress,
       }),
     }).catch(() => null);
     const data = res ? ((await res.json().catch(() => null)) as
@@ -384,6 +386,7 @@ export function Checkout({ restaurant, account, options = { requireEmail: true, 
                 <div className="flex justify-between"><dt>{t("checkout.subtotal")}</dt><dd>{euros(preview.subtotalCents)}</dd></div>
                 {preview.extrasDiscountCents > 0 && <div className="flex justify-between text-green-800"><dt>{t("checkout.extrasFree", { n: preview.freeExtras })}</dt><dd>−{euros(preview.extrasDiscountCents)}</dd></div>}
                 {preview.discountCents > 0 && <div className="flex justify-between text-green-800"><dt>{t("checkout.discount", { code: preview.promoApplied ?? "" })}</dt><dd>−{euros(preview.discountCents)}</dd></div>}
+                {preview.loyaltyDiscountCents > 0 && <div className="flex justify-between text-green-800"><dt>{t("loyalty.discount", { name: preview.rewardApplied?.name ?? "" })}</dt><dd>−{euros(preview.loyaltyDiscountCents)}</dd></div>}
                 {mode === "DELIVERY" && <div className="flex justify-between"><dt>{t("checkout.delivery")}</dt><dd>{zone ? (preview.deliveryFeeCents ? euros(preview.deliveryFeeCents) : t("checkout.deliveryFree")) : "—"}</dd></div>}
                 <div className="flex justify-between pt-1 text-xl font-bold"><dt>{t("checkout.total")}</dt><dd>{euros(preview.totalCents)}</dd></div>
                 <div className="text-xs text-neutral-500">{t("checkout.vatIncluded", { lines: preview.vatBreakdown.map((v) => `${vatLabel(v.rate)} : ${euros(v.vatCents)}`).join(" · ") })}</div>
@@ -404,6 +407,7 @@ export function Checkout({ restaurant, account, options = { requireEmail: true, 
           </form>
           {promoCode && preview?.promoError && <p className="mt-1 text-sm text-red-700">{t("err.PROMO")}</p>}
           {promoCode && preview?.promoApplied && <p className="mt-1 text-sm text-green-800">{t("checkout.promoApplied", { code: preview.promoApplied })}</p>}
+          {preview?.loyalty && <LoyaltyBox loyalty={preview.loyalty} rewardId={rewardId} onChange={setRewardId} />}
 
           {preview?.containsAlcohol && (
             <label className="mt-4 flex items-start gap-2 text-sm">

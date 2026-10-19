@@ -51,6 +51,7 @@ function linesTable(o: FullOrder, { t }: MailContext): string {
   const extra = [
     o.extrasDiscountCents ? `<tr><td>${esc(t("track.extras"))}</td><td align="right">−${euros(o.extrasDiscountCents)}</td></tr>` : "",
     o.discountCents ? `<tr><td>${esc(t("track.discount", { code: o.promoCode ?? "" }))}</td><td align="right">−${euros(o.discountCents)}</td></tr>` : "",
+    o.loyaltyDiscountCents ? `<tr><td>${esc(t("loyalty.discount", { name: o.loyaltyRewardName }))}</td><td align="right">−${euros(o.loyaltyDiscountCents)}</td></tr>` : "",
     o.mode === "DELIVERY" ? `<tr><td>${esc(t("checkout.delivery"))}</td><td align="right">${o.deliveryFeeCents ? euros(o.deliveryFeeCents) : esc(t("checkout.deliveryFree"))}</td></tr>` : "",
   ].join("");
   return `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px">${rows.join("")}${extra}

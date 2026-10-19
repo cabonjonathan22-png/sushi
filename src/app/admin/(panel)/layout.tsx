@@ -17,6 +17,7 @@ const NAV: { href: string; label: string; perm?: Permission; icon: string }[] = 
   { href: "/admin/cuisine", label: "Écran cuisine", perm: "orders.view", icon: "👨‍🍳" },
   { href: "/admin/menu", label: "Menu & ruptures", perm: "stock.toggle", icon: "📋" },
   { href: "/admin/promos", label: "Codes promo", perm: "promos.edit", icon: "🏷️" },
+  { href: "/admin/fidelite", label: "Fidélité", perm: "promos.edit", icon: "⭐" },
   { href: "/admin/restaurant", label: "Mon restaurant", perm: "restaurant.settings", icon: "⚙️" },
   { href: "/admin/compta", label: "Comptabilité", perm: "accounting.view", icon: "📊" },
   { href: "/admin/utilisateurs", label: "Utilisateurs", perm: "users.manage", icon: "👥" },

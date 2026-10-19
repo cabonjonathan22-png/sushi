@@ -9,6 +9,7 @@ import { makeCustomerLink, readCustomerLink, verifyCustomerLink } from "@/lib/cu
 import { db } from "@/lib/db";
 import { getI18n } from "@/i18n/server";
 import { passwordResetMail } from "@/lib/emails";
+import { creditCustomer } from "@/lib/loyalty";
 import { getSiteSettings } from "@/lib/restaurants";
 import { sendMail } from "@/lib/mail";
 import { LIMITS, rateLimit } from "@/lib/rate-limit";
@@ -48,6 +49,7 @@ export async function setPasswordAction(_: Result, form: FormData): Promise<Resu
     db.order.updateMany({ where: { customerEmail: customer.email, customerId: null }, data: { customerId: customer.id } }),
     db.session.deleteMany({ where: { customerId: customer.id } }),
   ]);
+  await creditCustomer(customer.id).catch((e) => console.error("[fidélité]", e));
   await startCustomerSession(customer.id);
   redirect("/compte");
 }

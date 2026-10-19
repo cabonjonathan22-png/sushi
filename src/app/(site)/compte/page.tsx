@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ActionForm, SubmitButton } from "@/components/admin/forms";
 import { ReorderButton } from "@/components/order/ReorderButton";
+import { LoyaltyCard } from "@/components/site/LoyaltyCard";
 import { getCustomer } from "@/lib/auth/session";
 import { getConfig } from "@/lib/config";
 import { getI18n } from "@/i18n/server";
@@ -63,6 +64,8 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         <h1 className="me-auto text-5xl">{t("account.hello", { name: c.firstName || "" })}</h1>
         <form action={customerLogoutAction}><button className="btn-ghost">{t("account.logout")}</button></form>
       </div>
+
+      <LoyaltyCard customerId={c.id} t={t} />
 
       <section className="card p-5">
         <h2 className="text-3xl">{t("account.orders")}</h2>

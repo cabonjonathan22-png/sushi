@@ -111,25 +111,25 @@ enum OrderSource {
 
 /// Ligne unique (id = 1) : identité légale et réglages communs.
 model SiteSettings {
-  id                Int      @id @default(1)
-  brandName         String   @default("Yaoma Sushi")
-  companyName       String   @default("")
-  legalForm         String   @default("")
-  shareCapital      String   @default("")
-  siret             String   @default("")
-  vatNumber         String   @default("")
-  rcs               String   @default("")
-  publisherName     String   @default("")
-  contactEmail      String   @default("")
-  hostName          String   @default("")
-  hostAddress       String   @default("")
+  id            Int      @id @default(1)
+  brandName     String   @default("Yaoma Sushi")
+  companyName   String   @default("")
+  legalForm     String   @default("")
+  shareCapital  String   @default("")
+  siret         String   @default("")
+  vatNumber     String   @default("")
+  rcs           String   @default("")
+  publisherName String   @default("")
+  contactEmail  String   @default("")
+  hostName      String   @default("")
+  hostAddress   String   @default("")
   /// Nom affiché pour la catégorie spéciale des suppléments.
-  extrasLabel       String   @default("Les petits plus")
+  extrasLabel   String   @default("Les petits plus")
   /// Textes de l'accueil : { heroTitle, heroTagline, intro, commitment, heroImageId }
-  content           Json     @default("{}")
+  content       Json     @default("{}")
   /// Configuration générale (écran « Configuration ») — voir src/lib/config.ts
-  config            Json     @default("{}")
-  updatedAt         DateTime @updatedAt
+  config        Json     @default("{}")
+  updatedAt     DateTime @updatedAt
 }
 
 model Counter {
@@ -140,54 +140,54 @@ model Counter {
 // ───────────────────────────── Restaurants ─────────────────────────────
 
 model Restaurant {
-  id                 String   @id @default(cuid())
-  slug               String   @unique
-  name               String
-  street             String
-  postalCode         String
-  city               String
-  phones             String[]
-  email              String   @default("")
-  mapsUrl            String   @default("")
-  description        String   @default("")
-  photoIds           String[]
-  active             Boolean  @default(true)
-  sortOrder          Int      @default(0)
-  timezone           String   @default("Europe/Paris")
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  street      String
+  postalCode  String
+  city        String
+  phones      String[]
+  email       String   @default("")
+  mapsUrl     String   @default("")
+  description String   @default("")
+  photoIds    String[]
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  timezone    String   @default("Europe/Paris")
 
   // Services proposés
-  dineInEnabled      Boolean  @default(true)
-  pickupEnabled      Boolean  @default(true)
-  deliveryEnabled    Boolean  @default(true)
+  dineInEnabled   Boolean @default(true)
+  pickupEnabled   Boolean @default(true)
+  deliveryEnabled Boolean @default(true)
 
   // Créneaux
-  prepMinutes        Int      @default(20) // délai de préparation minimum
-  slotMinutes        Int      @default(15) // intervalle entre deux créneaux
-  maxOrdersPerSlot   Int? // vide = illimité
-  maxDaysAhead       Int      @default(6) // commande à l'avance (jours)
+  prepMinutes      Int  @default(20) // délai de préparation minimum
+  slotMinutes      Int  @default(15) // intervalle entre deux créneaux
+  maxOrdersPerSlot Int? // vide = illimité
+  maxDaysAhead     Int  @default(6) // commande à l'avance (jours)
 
   /// « Fermer les commandes maintenant » : actif jusqu'à cette date.
   ordersPausedUntil  DateTime?
-  ordersPausedReason String   @default("")
+  ordersPausedReason String    @default("")
 
   /// Minimum de commande par défaut (retrait), en centimes. 0 = aucun.
-  pickupMinimumCents Int      @default(0)
+  pickupMinimumCents Int @default(0)
 
   // Paiement Stripe propre au restaurant (secrets chiffrés AES-256-GCM)
-  stripePublishableKey  String @default("")
-  stripeSecretKeyEnc    String @default("")
+  stripePublishableKey   String @default("")
+  stripeSecretKeyEnc     String @default("")
   stripeWebhookSecretEnc String @default("")
 
   // Impression BizPrint (BizSwoop) : clés de l'application, la secrète chiffrée
-  bizprintPublicKey  String  @default("")
-  bizprintSecretEnc  String  @default("")
+  bizprintPublicKey String @default("")
+  bizprintSecretEnc String @default("")
 
-  alertEmails        String[]
+  alertEmails       String[]
   /// Interdire les produits « alcool » en livraison.
-  noAlcoholDelivery  Boolean  @default(false)
+  noAlcoholDelivery Boolean  @default(false)
 
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   openingHours   OpeningHour[]
   closures       ClosurePeriod[]
@@ -229,19 +229,19 @@ model ClosurePeriod {
 }
 
 model DeliveryZone {
-  id            String     @id @default(cuid())
-  restaurantId  String
-  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  name          String
-  active        Boolean    @default(true)
-  sortOrder     Int        @default(0)
-  minLunchCents Int        @default(0)
-  minDinnerCents Int       @default(0)
-  feeCents      Int        @default(0)
+  id             String             @id @default(cuid())
+  restaurantId   String
+  restaurant     Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name           String
+  active         Boolean            @default(true)
+  sortOrder      Int                @default(0)
+  minLunchCents  Int                @default(0)
+  minDinnerCents Int                @default(0)
+  feeCents       Int                @default(0)
   /// Livraison gratuite à partir de ce sous-total (vide = jamais).
-  freeFromCents Int?
-  etaMinutes    Int        @default(30)
-  areas         DeliveryZoneArea[]
+  freeFromCents  Int?
+  etaMinutes     Int                @default(30)
+  areas          DeliveryZoneArea[]
 }
 
 /// Couple code postal + commune desservi (une commune peut partager son code postal).
@@ -270,21 +270,21 @@ model RestaurantPaymentMethod {
 }
 
 model Printer {
-  id           String        @id @default(cuid())
-  restaurantId String
-  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  name         String
-  method       PrinterMethod @default(BROWSER)
-  paperWidth   PaperWidth    @default(MM80)
-  copies       Int           @default(1)
-  autoPrint    Boolean       @default(true)
-  active       Boolean       @default(true)
+  id              String        @id @default(cuid())
+  restaurantId    String
+  restaurant      Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name            String
+  method          PrinterMethod @default(BROWSER)
+  paperWidth      PaperWidth    @default(MM80)
+  copies          Int           @default(1)
+  autoPrint       Boolean       @default(true)
+  active          Boolean       @default(true)
   /// Jeton secret présent dans l'URL interrogée par l'imprimante / l'agent.
-  deviceToken  String        @unique
+  deviceToken     String        @unique
   /// N° de l'imprimante chez le service externe (PrintNode ou BizPrint).
-  remotePrinterId String     @default("")
-  lastSeenAt   DateTime?
-  jobs         PrintJob[]
+  remotePrinterId String        @default("")
+  lastSeenAt      DateTime?
+  jobs            PrintJob[]
 }
 
 model ApiKey {
@@ -339,15 +339,15 @@ model Image {
 }
 
 model Category {
-  id          String       @id @default(cuid())
-  slug        String       @unique
+  id          String               @id @default(cuid())
+  slug        String               @unique
   name        String
-  description String       @default("")
-  sortOrder   Int          @default(0)
-  visible     Boolean      @default(true)
-  kind        CategoryKind @default(STANDARD)
-  wpId        Int?         @unique
-  legacyUrl   String       @default("")
+  description String               @default("")
+  sortOrder   Int                  @default(0)
+  visible     Boolean              @default(true)
+  kind        CategoryKind         @default(STANDARD)
+  wpId        Int?                 @unique
+  legacyUrl   String               @default("")
   products    ProductCategory[]
   restaurants RestaurantCategory[]
 }
@@ -364,38 +364,39 @@ model RestaurantCategory {
 }
 
 model Product {
-  id               String   @id @default(cuid())
-  slug             String   @unique
-  name             String
-  shortDescription String   @default("")
-  description      String   @default("")
-  priceCents       Int
-  vatRate          Int      @default(1000) // 1000 = 10 %
-  imageId          String?
-  badges           String[] // codes : VEGETARIAN, VEGAN, SPICY, NEW, POPULAR, CHEF
-  allergens        String[] // 14 allergènes réglementaires (codes)
-  isAlcohol        Boolean  @default(false)
-  maxQuantity      Int?
+  id                String   @id @default(cuid())
+  slug              String   @unique
+  name              String
+  shortDescription  String   @default("")
+  description       String   @default("")
+  priceCents        Int
+  vatRate           Int      @default(1000) // 1000 = 10 %
+  imageId           String?
+  badges            String[] // codes : VEGETARIAN, VEGAN, SPICY, NEW, POPULAR, CHEF
+  allergens         String[] // 14 allergènes réglementaires (codes)
+  isAlcohol         Boolean  @default(false)
+  maxQuantity       Int?
   /// Nombre de « petits plus » (sauces, wasabi…) offerts avec chaque exemplaire de ce produit.
-  includedExtras   Int      @default(0)
-  availablePickup  Boolean  @default(true)
-  availableDelivery Boolean @default(true)
-  availableDineIn  Boolean  @default(true)
+  includedExtras    Int      @default(0)
+  availablePickup   Boolean  @default(true)
+  availableDelivery Boolean  @default(true)
+  availableDineIn   Boolean  @default(true)
   /// Proposé le midi / le soir (ex. formule du midi).
-  availableLunch   Boolean  @default(true)
-  availableDinner  Boolean  @default(true)
-  active           Boolean  @default(true)
-  archived         Boolean  @default(false)
-  wpId             Int?     @unique
-  legacySlug       String   @default("")
-  legacyUrl        String   @default("")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  availableLunch    Boolean  @default(true)
+  availableDinner   Boolean  @default(true)
+  active            Boolean  @default(true)
+  archived          Boolean  @default(false)
+  wpId              Int?     @unique
+  legacySlug        String   @default("")
+  legacyUrl         String   @default("")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  categories   ProductCategory[]
-  variants     ProductVariant[]
-  optionGroups OptionGroup[]
-  overrides    RestaurantProduct[]
+  categories     ProductCategory[]
+  variants       ProductVariant[]
+  optionGroups   OptionGroup[]
+  overrides      RestaurantProduct[]
+  loyaltyRewards LoyaltyReward[]
 }
 
 model ProductCategory {
@@ -411,16 +412,16 @@ model ProductCategory {
 
 /// Variation (ex. « 6 pièces · Frit ») : prix propre.
 model ProductVariant {
-  id         String  @id @default(cuid())
+  id         String              @id @default(cuid())
   productId  String
-  product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product    Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
   label      String
-  attributes Json    @default("{}")
+  attributes Json                @default("{}")
   priceCents Int
   imageId    String?
-  sortOrder  Int     @default(0)
-  active     Boolean @default(true)
-  wpId       Int?    @unique
+  sortOrder  Int                 @default(0)
+  active     Boolean             @default(true)
+  wpId       Int?                @unique
   overrides  RestaurantVariant[]
 }
 
@@ -472,36 +473,36 @@ model RestaurantVariant {
 }
 
 model PromoCode {
-  id             String    @id @default(cuid())
-  code           String    @unique // en majuscules
-  type           PromoType
+  id               String    @id @default(cuid())
+  code             String    @unique // en majuscules
+  type             PromoType
   /// Centimes (AMOUNT) ou pourcentage entier (PERCENT).
-  value          Int       @default(0)
-  minSubtotalCents Int     @default(0)
-  startsAt       DateTime?
-  endsAt         DateTime?
-  maxUses        Int?
-  usedCount      Int       @default(0)
-  active         Boolean   @default(true)
-  restaurantIds  String[] // vide = tous
-  createdAt      DateTime  @default(now())
+  value            Int       @default(0)
+  minSubtotalCents Int       @default(0)
+  startsAt         DateTime?
+  endsAt           DateTime?
+  maxUses          Int?
+  usedCount        Int       @default(0)
+  active           Boolean   @default(true)
+  restaurantIds    String[] // vide = tous
+  createdAt        DateTime  @default(now())
 }
 
 // ───────────────────────────── Utilisateurs ─────────────────────────────
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
+  id            String           @id @default(cuid())
+  email         String           @unique
   name          String
   passwordHash  String
   role          Role
-  active        Boolean   @default(true)
-  totpSecretEnc String    @default("")
-  totpEnabled   Boolean   @default(false)
-  failedLogins  Int       @default(0)
+  active        Boolean          @default(true)
+  totpSecretEnc String           @default("")
+  totpEnabled   Boolean          @default(false)
+  failedLogins  Int              @default(0)
   lockedUntil   DateTime?
   lastLoginAt   DateTime?
-  createdAt     DateTime  @default(now())
+  createdAt     DateTime         @default(now())
   restaurants   UserRestaurant[]
   sessions      Session[]
 }
@@ -516,21 +517,22 @@ model UserRestaurant {
 }
 
 model Customer {
-  id             String    @id @default(cuid())
-  email          String    @unique
-  phone          String    @default("")
-  firstName      String    @default("")
-  lastName       String    @default("")
-  passwordHash   String    @default("")
-  failedLogins   Int       @default(0)
-  lockedUntil    DateTime?
-  wpId           Int?      @unique
-  createdAt      DateTime  @default(now())
-  anonymizedAt   DateTime?
-  locale         String    @default("")
-  addresses      CustomerAddress[]
-  orders         Order[]
-  sessions       Session[]
+  id           String               @id @default(cuid())
+  email        String               @unique
+  phone        String               @default("")
+  firstName    String               @default("")
+  lastName     String               @default("")
+  passwordHash String               @default("")
+  failedLogins Int                  @default(0)
+  lockedUntil  DateTime?
+  wpId         Int?                 @unique
+  createdAt    DateTime             @default(now())
+  anonymizedAt DateTime?
+  locale       String               @default("")
+  addresses    CustomerAddress[]
+  orders       Order[]
+  sessions     Session[]
+  loyalty      LoyaltyTransaction[]
 }
 
 model CustomerAddress {
@@ -547,17 +549,17 @@ model CustomerAddress {
 
 /// Session (personnel ou client). L'id est le sha256 du jeton du cookie.
 model Session {
-  id            String    @id
-  userId        String?
-  user          User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  customerId    String?
-  customer      Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  id         String    @id
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
   /// Mot de passe correct mais code 2FA encore attendu.
-  pending2fa    Boolean   @default(false)
-  expiresAt     DateTime
-  createdAt     DateTime  @default(now())
-  ip            String    @default("")
-  userAgent     String    @default("")
+  pending2fa Boolean   @default(false)
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  ip         String    @default("")
+  userAgent  String    @default("")
 
   @@index([userId])
   @@index([customerId])
@@ -573,71 +575,78 @@ model RateLimit {
 // ───────────────────────────── Commandes ─────────────────────────────
 
 model Order {
-  id              String        @id @default(cuid())
-  restaurantId    String
-  restaurant      Restaurant    @relation(fields: [restaurantId], references: [id])
+  id            String        @id @default(cuid())
+  restaurantId  String
+  restaurant    Restaurant    @relation(fields: [restaurantId], references: [id])
   /// Numéro séquentiel par restaurant, sans trou (comptabilité).
-  number          Int
+  number        Int
   /// Numéro court du jour, affiché en cuisine et sur le ticket.
-  dailyNumber     Int
-  reference       String        @unique // ex. YS-CUC-000123
-  trackingToken   String        @unique
-  source          OrderSource   @default(WEB)
-  status          OrderStatus
-  paymentStatus   PaymentStatus
-  paymentMethod   PaymentMethod
-  mode            ServiceMode
-  period          DayPeriod
-  slotStart       DateTime
-  slotEnd         DateTime
+  dailyNumber   Int
+  reference     String        @unique // ex. YS-CUC-000123
+  trackingToken String        @unique
+  source        OrderSource   @default(WEB)
+  status        OrderStatus
+  paymentStatus PaymentStatus
+  paymentMethod PaymentMethod
+  mode          ServiceMode
+  period        DayPeriod
+  slotStart     DateTime
+  slotEnd       DateTime
 
   // Client (copie au moment de la commande)
-  customerId      String?
-  customer        Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  customerName    String
-  customerPhone   String
-  customerEmail   String
+  customerId    String?
+  customer      Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerName  String
+  customerPhone String
+  customerEmail String
 
   // Livraison (copie)
-  addressStreet   String        @default("")
-  addressExtra    String        @default("")
-  postalCode      String        @default("")
-  city            String        @default("")
-  deliveryNotes   String        @default("")
-  zoneId          String?
-  zoneName        String        @default("")
+  addressStreet String  @default("")
+  addressExtra  String  @default("")
+  postalCode    String  @default("")
+  city          String  @default("")
+  deliveryNotes String  @default("")
+  zoneId        String?
+  zoneName      String  @default("")
 
-  notes           String        @default("")
-  promoCode       String        @default("")
+  notes     String @default("")
+  promoCode String @default("")
 
   // Montants figés (centimes TTC)
-  subtotalCents    Int
-  discountCents    Int          @default(0)
+  subtotalCents       Int
+  discountCents       Int  @default(0)
   /// « Petits plus » offerts (remise automatique).
-  extrasDiscountCents Int       @default(0)
-  deliveryFeeCents Int          @default(0)
-  totalCents       Int
+  extrasDiscountCents Int  @default(0)
+  deliveryFeeCents    Int  @default(0)
+  totalCents          Int
   /// Ventilation TVA : [{ rate, baseCents, vatCents, totalCents }]
-  vatBreakdown     Json
+  vatBreakdown        Json
 
   /// Client a déclaré avoir 18 ans (commande contenant de l'alcool).
-  ageConfirmed    Boolean       @default(false)
+  ageConfirmed Boolean @default(false)
   /// Langue du client (e-mails et page de suivi dans sa langue), ex. « fr », « en ».
-  locale          String        @default("")
-  cancelReason    String        @default("")
+  locale       String  @default("")
+  cancelReason String  @default("")
 
-  placedAt        DateTime      @default(now())
-  acceptedAt      DateTime?
-  readyAt         DateTime?
-  completedAt     DateTime?
-  cancelledAt     DateTime?
-  updatedAt       DateTime      @updatedAt
+  /// Fidélité : récompense utilisée sur cette commande (figée à la commande).
+  loyaltyRewardId      String?
+  loyaltyRewardName    String  @default("")
+  loyaltyPointsSpent   Int     @default(0)
+  loyaltyDiscountCents Int     @default(0)
+
+  placedAt    DateTime  @default(now())
+  acceptedAt  DateTime?
+  readyAt     DateTime?
+  completedAt DateTime?
+  cancelledAt DateTime?
+  updatedAt   DateTime  @updatedAt
 
   lines        OrderLine[]
   statusEvents OrderStatusEvent[]
   payments     Payment[]
   refunds      Refund[]
   printJobs    PrintJob[]
+  loyalty      LoyaltyTransaction[]
 
   @@unique([restaurantId, number])
   @@index([restaurantId, status])
@@ -666,15 +675,15 @@ model OrderLine {
 }
 
 model OrderStatusEvent {
-  id        String       @id @default(cuid())
-  orderId   String
-  order     Order        @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  from      OrderStatus?
-  to        OrderStatus
-  at        DateTime     @default(now())
-  userId    String?
-  actor     String       @default("")
-  note      String       @default("")
+  id      String       @id @default(cuid())
+  orderId String
+  order   Order        @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  from    OrderStatus?
+  to      OrderStatus
+  at      DateTime     @default(now())
+  userId  String?
+  actor   String       @default("")
+  note    String       @default("")
 
   @@index([orderId, at])
 }
@@ -712,20 +721,20 @@ model Refund {
 }
 
 model PrintJob {
-  id        String         @id @default(cuid())
-  orderId   String
-  order     Order          @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  printerId String?
-  printer   Printer?       @relation(fields: [printerId], references: [id], onDelete: SetNull)
-  copies    Int            @default(1)
-  status    PrintJobStatus @default(PENDING)
-  attempts  Int            @default(0)
-  lastError String         @default("")
+  id          String         @id @default(cuid())
+  orderId     String
+  order       Order          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  printerId   String?
+  printer     Printer?       @relation(fields: [printerId], references: [id], onDelete: SetNull)
+  copies      Int            @default(1)
+  status      PrintJobStatus @default(PENDING)
+  attempts    Int            @default(0)
+  lastError   String         @default("")
   /// N° du travail chez le service externe (BizPrint), pour suivre son statut.
-  remoteJobId String       @default("")
-  createdAt DateTime       @default(now())
-  sentAt    DateTime?
-  doneAt    DateTime?
+  remoteJobId String         @default("")
+  createdAt   DateTime       @default(now())
+  sentAt      DateTime?
+  doneAt      DateTime?
 
   @@index([printerId, status])
 }
@@ -786,4 +795,59 @@ model Translation {
 
   @@unique([entityType, entityId, field, locale])
   @@index([locale, entityType])
+}
+
+// ---------------------------------------------------------------- Fidélité
+
+enum LoyaltyRewardType {
+  AMOUNT // remise en euros (value = centimes)
+  PERCENT // remise en pourcentage (value = 1 à 100)
+  FREE_PRODUCT // produit offert (ajouté à la commande, prix déduit)
+}
+
+enum LoyaltyTxKind {
+  EARN // points gagnés (commande remise)
+  REDEEM // points utilisés (récompense)
+  REFUND_REDEEM // points rendus (commande annulée)
+  REVERSE_EARN // points retirés (commande annulée ou remboursée)
+  BONUS // bienvenue
+  ADJUST // correction manuelle (back-office)
+  EXPIRE // expiration après inactivité
+}
+
+/// Récompense échangeable contre des points (réglée dans le back-office).
+model LoyaltyReward {
+  id               String               @id @default(cuid())
+  name             String
+  description      String               @default("")
+  type             LoyaltyRewardType
+  value            Int                  @default(0)
+  productId        String?
+  product          Product?             @relation(fields: [productId], references: [id], onDelete: SetNull)
+  pointsCost       Int
+  minSubtotalCents Int                  @default(0)
+  active           Boolean              @default(true)
+  sortOrder        Int                  @default(0)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  transactions     LoyaltyTransaction[]
+}
+
+/// Grand livre des points : le solde d'un client est la somme de ses mouvements.
+model LoyaltyTransaction {
+  id          String         @id @default(cuid())
+  customerId  String
+  customer    Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  kind        LoyaltyTxKind
+  points      Int
+  orderId     String?
+  order       Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  rewardId    String?
+  reward      LoyaltyReward? @relation(fields: [rewardId], references: [id], onDelete: SetNull)
+  note        String         @default("")
+  createdById String?
+  createdAt   DateTime       @default(now())
+
+  @@index([customerId, createdAt])
+  @@index([orderId])
 }

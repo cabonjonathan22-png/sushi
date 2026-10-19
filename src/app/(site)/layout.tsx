@@ -39,9 +39,9 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
           <p role="status" className="bg-char px-4 py-2 text-center text-sm font-medium text-paper">{config.site.announcement}</p>
         )}
         <SiteHeader brand={settings.brandName} phone={restaurant?.phones[0]} country={country} showAccount={config.customers.accountsEnabled}
-          multiRestaurant={list.length > 1} t={t} locale={locale} languages={languages} />
+          loyalty={config.loyalty.enabled && config.customers.accountsEnabled} multiRestaurant={list.length > 1} t={t} locale={locale} languages={languages} />
         <main id="contenu" className="flex-1">{children}</main>
-        <SiteFooter brand={settings.brandName} restaurant={restaurant} restaurants={list} country={country} showAccount={config.customers.accountsEnabled} t={t} locale={locale}
+        <SiteFooter brand={settings.brandName} restaurant={restaurant} restaurants={list} country={country} showAccount={config.customers.accountsEnabled} loyalty={config.loyalty.enabled && config.customers.accountsEnabled} t={t} locale={locale}
           options={{ text: config.site.footerText, facebookUrl: config.site.facebookUrl, instagramUrl: config.site.instagramUrl, googleReviewUrl: config.site.googleReviewUrl }} />
       </div>
     </I18nProvider>
