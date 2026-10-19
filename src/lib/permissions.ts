@@ -19,6 +19,7 @@ export type Permission =
   | "menu.edit" // catalogue commun, catégories, produits, petits plus
   | "menu.restaurant" // surcharges par restaurant (prix, actif)
   | "promos.edit"
+  | "customers.view" // fichier clients (données personnelles)
   | "restaurant.settings" // infos, horaires, zones, services, paiements, imprimantes
   | "restaurant.create"
   | "accounting.view"
@@ -30,17 +31,17 @@ export type Permission =
 const MATRIX: Record<Role, Permission[]> = {
   SUPER_ADMIN: [
     "orders.view", "orders.update", "orders.print", "orders.payment", "orders.refund", "stock.toggle",
-    "menu.edit", "menu.restaurant", "promos.edit", "restaurant.settings", "restaurant.create",
+    "menu.edit", "menu.restaurant", "promos.edit", "customers.view", "restaurant.settings", "restaurant.create",
     "accounting.view", "accounting.close", "users.manage", "audit.view", "tech.config",
   ],
   OWNER: [
     "orders.view", "orders.update", "orders.print", "orders.payment", "orders.refund", "stock.toggle",
-    "menu.edit", "menu.restaurant", "promos.edit", "restaurant.settings", "restaurant.create",
+    "menu.edit", "menu.restaurant", "promos.edit", "customers.view", "restaurant.settings", "restaurant.create",
     "accounting.view", "accounting.close", "users.manage", "audit.view", "tech.config",
   ],
   MANAGER: [
     "orders.view", "orders.update", "orders.print", "orders.payment", "orders.refund", "stock.toggle",
-    "menu.edit", "menu.restaurant", "promos.edit", "restaurant.settings",
+    "menu.edit", "menu.restaurant", "promos.edit", "customers.view", "restaurant.settings",
     "accounting.view", "accounting.close",
   ],
   EMPLOYEE: ["orders.view", "orders.update", "orders.print", "orders.payment", "stock.toggle"],

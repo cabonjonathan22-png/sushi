@@ -14,6 +14,7 @@ const NAV: { href: string; label: string; perm?: Permission; icon: string }[] = 
   { href: "/admin", label: "Accueil", icon: "🏠" },
   { href: "/admin/commandes", label: "Commandes en cours", perm: "orders.view", icon: "🛎️" },
   { href: "/admin/commandes/historique", label: "Historique", perm: "orders.view", icon: "🗂️" },
+  { href: "/admin/clients", label: "Clients", perm: "customers.view", icon: "👤" },
   { href: "/admin/cuisine", label: "Écran cuisine", perm: "orders.view", icon: "👨‍🍳" },
   { href: "/admin/menu", label: "Menu & ruptures", perm: "stock.toggle", icon: "📋" },
   { href: "/admin/promos", label: "Codes promo", perm: "promos.edit", icon: "🏷️" },
