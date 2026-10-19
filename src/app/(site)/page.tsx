@@ -11,6 +11,7 @@ import { money } from "@/lib/money";
 import { deliveryTowns, getPublicRestaurant, getSiteSettings, heroImage, listRestaurants } from "@/lib/restaurants";
 import { faqJsonLd, JsonLd, restaurantJsonLd, websiteJsonLd } from "@/lib/seo";
 import { getShowcase } from "@/lib/showcase";
+import { pauseUntilText } from "@/lib/pause";
 
 export const dynamic = "force-dynamic"; // données de la base (pas de pré-rendu à la compilation)
 
@@ -32,6 +33,9 @@ export default async function HomePage() {
   const cuisine = ["en", "de"].includes(locale) ? c.cuisine : c.cuisine.toLocaleLowerCase(locale);
   // Sans service de traduction, la cuisine reste dans la langue du restaurant : pas de phrase mixte.
   const tagline = (city: string) => locale !== defaultLocale && c.cuisine === config.site.cuisine ? `${c.cuisine} · ${city}` : t("home.tagline", { cuisine, city });
+  const pausedReason = main?.paused && main.pausedReason
+    ? locale === defaultLocale ? main.pausedReason : (await translateTexts("restaurant", main.id, { pausedReason: main.pausedReason }, locale)).pausedReason
+    : "";
   const showcase = main ? await getShowcase(main.id, locale, defaultLocale) : { featured: [], categories: [] };
   const orderHref = main && all.length === 1 ? `/commander/${main.slug}` : "/commander";
 
@@ -74,8 +78,16 @@ export default async function HomePage() {
               {main && <span className="mt-3 block font-sans text-lg font-normal tracking-normal text-muted sm:text-xl">{tagline(main.city)}</span>}
             </h1>
             {c.heroTagline && <p className="mt-6 max-w-xl font-display text-2xl italic leading-snug text-char/80">{c.heroTagline}</p>}
+            {/* Commandes fermées : encadré bien visible avec le message du restaurant, la carte reste consultable. */}
+            {main?.paused && main.pausedUntil && (
+              <div role="status" className="mt-8 max-w-xl rounded-2xl bg-red-800 p-5 text-white shadow-lg">
+                <p className="font-display text-2xl">{t("home.closedTitle")}</p>
+                <p className="mt-1">{t("pause.banner", { until: pauseUntilText(main.pausedUntil, t, locale, main.timezone) })}</p>
+                {pausedReason && <p className="mt-2 font-semibold">{pausedReason}</p>}
+              </div>
+            )}
             <div className="mt-9 flex flex-wrap gap-3">
-              <Link href={orderHref} className="btn-primary rounded-full px-6 sm:px-8 sm:text-lg">{t("home.orderOnline")}</Link>
+              {!main?.paused && <Link href={orderHref} className="btn-primary rounded-full px-6 sm:px-8 sm:text-lg">{t("home.orderOnline")}</Link>}
               <Link href={orderHref} className="btn rounded-full border border-char/20 px-6 text-char hover:bg-linen sm:px-7 sm:text-lg">{t("home.seeMenu")}</Link>
             </div>
             {main && (
@@ -249,7 +261,9 @@ export default async function HomePage() {
         </section>
       )}
 
-      <div className="pt-16"><CtaBand title={t("home.ctaTitle")} text={t("home.ctaText")} href={orderHref} label={t("home.orderOnline")} /></div>
+      {main?.paused
+        ? <div className="pt-16"><CtaBand title={t("home.closedTitle")} text={pausedReason || t("menu.browse")} href={orderHref} label={t("home.seeMenu")} /></div>
+        : <div className="pt-16"><CtaBand title={t("home.ctaTitle")} text={t("home.ctaText")} href={orderHref} label={t("home.orderOnline")} /></div>}
     </>
   );
 }

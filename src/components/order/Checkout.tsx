@@ -420,7 +420,7 @@ export function Checkout({ restaurant, account, options = { requireEmail: true, 
             <span>{t("checkout.acceptTerms")} <Link href="/cgv" target="_blank" className="underline">{t("checkout.termsLink")}</Link>.</span>
           </label>
 
-          <button type="button" onClick={submit} disabled={busy || !preview || preview.missingCents > 0 || !cart.items.length} className="btn-primary mt-4 w-full text-lg">
+          <button type="button" onClick={submit} disabled={busy || restaurant.paused || !preview || preview.missingCents > 0 || !cart.items.length} className="btn-primary mt-4 w-full text-lg">
             {busy ? t("checkout.sending") : paymentMethod === "ONLINE_CARD" ? t("checkout.toPayment") : t("checkout.order", { total: euros(preview?.totalCents ?? 0) })}
           </button>
           {slot && <p className="mt-2 text-center text-sm text-neutral-700">{t("checkout.when", { mode: modeLabel(mode), day: days?.find((d) => d.slots.some((x) => x.start === slot.start))?.label ?? "", time: slot.label })}</p>}

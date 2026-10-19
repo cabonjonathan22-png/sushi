@@ -15,7 +15,7 @@ const FR_PAUSE: Record<string, string> = { "pause.untilFurther": "jusqu'à nouve
 const frPause = (key: string, vars: Record<string, string> = {}) => FR_PAUSE[key]!.replace(/\{(\w+)\}/g, (_, k: string) => vars[k] ?? "");
 
 export default async function Dashboard({ searchParams }: { searchParams: Promise<{ ok?: string }> }) {
-  const { staff, current } = await adminContext();
+  const { staff, current, restaurants } = await adminContext();
   const ok = (await searchParams).ok;
   if (!current) return <p className="card p-6">Aucun restaurant ne vous est attribué. Contactez le propriétaire.</p>;
 
@@ -61,6 +61,12 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
             <h2 id="online-orders" className="me-auto text-3xl">Commandes en ligne — {current.name}</h2>
             <span className={`chip px-3 py-1 text-sm ${paused ? "bg-red-700 text-white" : "bg-green-100 text-green-800"}`}>{paused ? "FERMÉES" : "Ouvertes"}</span>
           </div>
+          {!current.active && (
+            <p className="mt-2 rounded-xl bg-amber-100 p-3 text-sm font-semibold text-amber-900">
+              Attention : « {current.name} » n'est pas visible sur le site (restaurant désactivé). Le fermer n'a aucun effet pour les clients :
+              choisissez le bon restaurant dans la liste en haut du menu{restaurants.length > 1 ? ", ou cochez « Tous mes restaurants »" : ""}.
+            </p>
+          )}
           {paused && (
             <div className="mt-2 space-y-3">
               <p className="text-lg font-semibold text-red-800">
@@ -70,6 +76,9 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
               <form action={pauseOrdersAction}>
                 <input type="hidden" name="restaurantId" value={current.id} />
                 <input type="hidden" name="duree" value="reopen" />
+                {restaurants.filter((r) => r.ordersPausedUntil && r.ordersPausedUntil > new Date()).length > 1 && (
+                  <label className="mb-2 flex items-center gap-2 text-sm"><input type="checkbox" name="scope" value="all" className="h-4 w-4" />Rouvrir tous mes restaurants</label>
+                )}
                 <SubmitButton className="btn bg-green-700 text-lg text-white hover:bg-green-800">Rouvrir les commandes maintenant</SubmitButton>
               </form>
             </div>
@@ -90,7 +99,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                     ["today", "Toute la journée d'aujourd'hui"], ["indefinite", "Jusqu'à nouvel ordre"],
                   ].map(([v, l]) => (
                     <label key={v} className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white p-3">
-                      <input type="radio" name="duree" value={v} defaultChecked={v === "30"} className="h-4 w-4" />{l}
+                      <input type="radio" name="duree" value={v} required className="h-4 w-4" />{l}
                     </label>
                   ))}
                   <label className="flex flex-wrap items-center gap-2 rounded-xl border border-neutral-200 bg-white p-3">
@@ -103,7 +112,13 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                   vous pouvez aussi utiliser « Fermetures exceptionnelles » (Mon restaurant → Horaires) : seuls ces jours-là sont bloqués.
                 </p>
               </fieldset>
-              <SubmitButton className="btn-danger justify-self-start text-lg">{paused ? "Mettre à jour la fermeture" : "Fermer les commandes"}</SubmitButton>
+              {restaurants.length > 1 && (
+                <label className="flex items-center gap-2 font-semibold">
+                  <input type="checkbox" name="scope" value="all" className="h-5 w-5" />
+                  Appliquer à tous mes restaurants ({restaurants.map((r) => r.name).join(", ")})
+                </label>
+              )}
+              <SubmitButton className="btn-danger justify-self-start text-lg">{paused ? "Mettre à jour la fermeture" : `Fermer les commandes — ${current.name}`}</SubmitButton>
             </form>
           </details>
         </section>

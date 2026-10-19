@@ -122,7 +122,7 @@ export function OrderMenu({
           </span>
         </span>
       </button>
-      {!p.outOfStock && (
+      {!p.outOfStock && !restaurant.paused && (
         <button type="button" onClick={() => quickAdd(p)} className="m-3 ms-0 flex h-11 w-11 shrink-0 items-center justify-center self-end rounded-full bg-brand-500 text-2xl font-bold text-ink hover:bg-brand-400"
           aria-label={p.variants.length || p.optionGroups.length ? t("menu.choose", { name: p.name }) : t("menu.add", { name: p.name })}>+</button>
       )}
@@ -183,7 +183,7 @@ export function OrderMenu({
 
       <aside className="hidden lg:block">
         <div className="card sticky top-24 mt-8 h-[calc(100dvh-7.5rem)] overflow-hidden">
-          <CartPanel slug={restaurant.slug} items={cart.items} products={byId} extras={extras} extrasLabel={extrasLabel} extrasHint={extrasHint} restaurantId={restaurant.id}
+          <CartPanel closed={restaurant.paused} slug={restaurant.slug} items={cart.items} products={byId} extras={extras} extrasLabel={extrasLabel} extrasHint={extrasHint} restaurantId={restaurant.id}
             onQuantity={cart.setQuantity} onAddExtra={(p) => cart.add(p.id, null, [], 1)} />
         </div>
       </aside>
@@ -201,7 +201,7 @@ export function OrderMenu({
           <button type="button" className="absolute inset-0 bg-black/50" onClick={() => setDrawer(false)} aria-label={t("product.close")} />
           <div className="absolute inset-x-0 bottom-0 max-h-[90dvh] overflow-hidden rounded-t-3xl bg-white">
             <div className="h-[85dvh]">
-              <CartPanel slug={restaurant.slug} items={cart.items} products={byId} extras={extras} extrasLabel={extrasLabel} extrasHint={extrasHint} restaurantId={restaurant.id}
+              <CartPanel closed={restaurant.paused} slug={restaurant.slug} items={cart.items} products={byId} extras={extras} extrasLabel={extrasLabel} extrasHint={extrasHint} restaurantId={restaurant.id}
                 onQuantity={cart.setQuantity} onAddExtra={(p) => cart.add(p.id, null, [], 1)} onClose={() => setDrawer(false)} />
             </div>
           </div>
@@ -209,6 +209,7 @@ export function OrderMenu({
       )}
 
       <ProductDialog
+        closed={restaurant.paused}
         badges={badges}
         product={open}
         onClose={() => setOpen(null)}

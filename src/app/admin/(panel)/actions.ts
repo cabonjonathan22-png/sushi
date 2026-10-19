@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { ADMIN_RESTAURANT_COOKIE, authorize, logAction } from "@/lib/admin";
 import { requireStaff } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { canAccessRestaurant } from "@/lib/permissions";
+import { can, canAccessRestaurant, restaurantScope } from "@/lib/permissions";
 import { INDEFINITE } from "@/lib/pause";
 import { addDays, localDate, zonedTime } from "@/lib/time";
 
@@ -39,7 +39,13 @@ export async function pauseOrdersAction(form: FormData) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < today || date > addDays(today, 366)) return;
     until = zonedTime(addDays(date, 1), "00:00", tz); // date incluse
   } else if (duree === "indefinite") until = INDEFINITE;
-  await db.restaurant.update({ where: { id: restaurantId }, data: { ordersPausedUntil: until, ordersPausedReason: until ? reason : "" } });
-  await logAction(staff, until ? "restaurant.pause" : "restaurant.resume", "Restaurant", restaurantId, restaurantId, { until, reason });
+  // « Tous mes restaurants » : appliqué à chaque restaurant que la personne peut gérer.
+  const ids = form.get("scope") === "all"
+    ? (await db.restaurant.findMany({ where: restaurantScope(staff.actor), select: { id: true } })).map((r) => r.id).filter((id) => can(staff.actor, "orders.update", id))
+    : [restaurantId];
+  for (const id of ids) {
+    await db.restaurant.update({ where: { id }, data: { ordersPausedUntil: until, ordersPausedReason: until ? reason : "" } });
+    await logAction(staff, until ? "restaurant.pause" : "restaurant.resume", "Restaurant", id, id, { until, reason, all: ids.length > 1 });
+  }
   revalidatePath("/", "layout");
 }

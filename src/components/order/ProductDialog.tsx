@@ -16,12 +16,15 @@ export function ProductDialog({
   product,
   onClose,
   onAdd,
+  closed = false,
   badges,
 }: {
   badges: BadgeDef[];
   product: ClientProduct | null;
   onClose: () => void;
   onAdd: (variantId: string | null, optionIds: string[], quantity: number) => void;
+  /** Commandes en ligne fermées : consultation seulement. */
+  closed?: boolean;
 }) {
   const { t } = useI18n();
   const ref = useRef<HTMLDialogElement>(null);
@@ -152,13 +155,13 @@ export function ProductDialog({
           <button
             type="button"
             className="btn-primary flex-1 justify-between text-lg"
-            disabled={needsVariant || !groupsOk || product.outOfStock}
+            disabled={closed || needsVariant || !groupsOk || product.outOfStock}
             onClick={() => {
               onAdd(variantId, options, qty);
               ref.current?.close();
             }}
           >
-            <span>{needsVariant ? t("product.makeChoice") : t("product.add")}</span>
+            <span>{closed ? t("menu.closedShort") : needsVariant ? t("product.makeChoice") : t("product.add")}</span>
             <span>{euros(unit * qty)}</span>
           </button>
         </div>

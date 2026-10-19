@@ -20,7 +20,9 @@ export function CartPanel({
   onQuantity,
   onAddExtra,
   onClose,
+  closed = false,
 }: {
+  closed?: boolean;
   slug: string;
   items: CartItem[];
   products: Map<string, ClientProduct>;
@@ -82,7 +84,7 @@ export function CartPanel({
                     <div className="flex items-center rounded-lg border border-neutral-300" role="group" aria-label={t("cart.quantityOf", { name: p?.name ?? "" })}>
                       <button type="button" className="h-9 w-9 text-xl" onClick={() => onQuantity(item.key, item.quantity - 1)} aria-label={t("product.less")}>−</button>
                       <span className="w-7 text-center font-semibold">{item.quantity}</span>
-                      <button type="button" className="h-9 w-9 text-xl" onClick={() => onQuantity(item.key, item.quantity + 1)} aria-label={t("product.more")}>+</button>
+                      <button type="button" className="h-9 w-9 text-xl disabled:opacity-30" disabled={closed} onClick={() => onQuantity(item.key, item.quantity + 1)} aria-label={t("product.more")}>+</button>
                     </div>
                     <button type="button" className="text-sm text-neutral-500 underline" onClick={() => onQuantity(item.key, 0)}>{t("cart.remove")}</button>
                   </div>
@@ -91,7 +93,7 @@ export function CartPanel({
             })}
           </ul>
 
-          {suggestions.length > 0 && (
+          {suggestions.length > 0 && !closed && (
             <div className="mx-5 my-4 rounded-2xl bg-sand p-4">
               <p className="font-display text-2xl leading-none">{extrasLabel}</p>
               {extrasHint && <p className="mb-3 text-sm text-neutral-700">{extrasHint}</p>}
@@ -113,14 +115,20 @@ export function CartPanel({
             <span>{t("cart.subtotal", { n: count })}</span>
             <strong>{euros(priced.subtotalCents)}</strong>
           </div>
-          <Link
-            href={`/commander/${slug}/valider`}
-            aria-disabled={priced.hasErrors}
-            className={`btn-primary w-full text-lg ${priced.hasErrors ? "pointer-events-none opacity-50" : ""}`}
-          >
-            {t("cart.checkout")}
-          </Link>
-          <p className="mt-2 text-center text-xs text-neutral-600">{t("cart.next")}</p>
+          {closed ? (
+            <p role="alert" className="rounded-xl bg-red-50 p-3 text-center text-sm font-semibold text-red-800">{t("cart.closed")}</p>
+          ) : (
+            <>
+              <Link
+                href={`/commander/${slug}/valider`}
+                aria-disabled={priced.hasErrors}
+                className={`btn-primary w-full text-lg ${priced.hasErrors ? "pointer-events-none opacity-50" : ""}`}
+              >
+                {t("cart.checkout")}
+              </Link>
+              <p className="mt-2 text-center text-xs text-neutral-600">{t("cart.next")}</p>
+            </>
+          )}
         </div>
       )}
     </div>
