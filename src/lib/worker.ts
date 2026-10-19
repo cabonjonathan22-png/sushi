@@ -58,6 +58,8 @@ export async function drainJobs(): Promise<number> {
 export async function maintenance(): Promise<void> {
   await Promise.allSettled([refreshBizPrintJobs(), cancelAbandonedPayments(), purgeSessions(), purgeRateLimits(), anonymizeInactiveCustomers()]);
   await drainJobs();
+  // Traduction d'avance de la carte dans les langues proposées (dans la limite du quota du jour).
+  await import("./translation-sources").then((m) => m.pretranslateAll()).catch((e) => console.error("[maintenance] traduction", e));
 }
 
 export const serverless = () => !!process.env.VERCEL || process.env.SERVERLESS === "1";
@@ -90,6 +92,11 @@ export function startWorker() {
   setInterval(() => {
     Promise.all([purgeSessions(), purgeRateLimits(), anonymizeInactiveCustomers()]).catch((e) => console.error("[worker] purge", e));
   }, 60 * 60_000).unref();
+
+  // Traduction d'avance de la carte (quota gratuit du jour), au démarrage puis toutes les 6 h.
+  const pretranslate = () => import("./translation-sources").then((m) => m.pretranslateAll()).catch((e) => console.error("[worker] traduction", e));
+  setTimeout(pretranslate, 60_000).unref();
+  setInterval(pretranslate, 6 * 3600_000).unref();
 
   console.log("[worker] démarré");
 }

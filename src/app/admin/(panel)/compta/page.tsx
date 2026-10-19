@@ -67,10 +67,23 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
       </div>
       {r.refunds > 0 && <p className="rounded-xl bg-amber-50 p-3">Remboursements / avoirs sur la période : <strong>−{euros(r.refunds)}</strong> · net {euros(r.netTtc)}</p>}
 
-      <div className="flex flex-wrap gap-2">
-        <a href={`/admin/compta/export?${qs}&format=xlsx`} className="btn-primary">Export Excel (comptable)</a>
-        <a href={`/admin/compta/export?${qs}&format=csv`} className="btn-ghost">Export CSV</a>
-      </div>
+      <section className="card grid gap-4 p-5 lg:grid-cols-[1fr_auto] lg:items-center">
+        <div>
+          <h2 className="text-3xl">Pour l'expert-comptable</h2>
+          <p className="text-sm text-neutral-600">
+            Pour la période et le restaurant choisis ci-dessus. Le <strong>dossier Excel</strong> contient : synthèse, TVA par mois et par taux,
+            encaissements par jour et moyen de paiement, ventes, détail des articles, avoirs, annulations, clôtures et écritures.
+            Le <strong>fichier d'écritures (FEC)</strong> s'importe directement dans le logiciel comptable ; les numéros de comptes se règlent
+            dans <Link href="/admin/configuration#comptabilite" className="underline">Configuration → Comptabilité</Link>.
+          </p>
+          <p className="mt-1 text-xs text-neutral-500">Les commandes de l'ancien site (historique importé) ne sont pas comptabilisées.</p>
+        </div>
+        <div className="flex flex-wrap gap-2 lg:flex-col">
+          <a href={`/admin/compta/export?${qs}&format=xlsx`} className="btn-primary">Dossier Excel complet</a>
+          <a href={`/admin/compta/export?${qs}&format=fec`} className="btn-dark">Écritures comptables (FEC)</a>
+          <a href={`/admin/compta/export?${qs}&format=csv`} className="btn-ghost">Liste des ventes (CSV)</a>
+        </div>
+      </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="card overflow-x-auto p-5">

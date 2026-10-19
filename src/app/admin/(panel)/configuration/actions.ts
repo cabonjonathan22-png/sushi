@@ -71,8 +71,22 @@ export async function saveConfigAction(_: Result, form: FormData): Promise<Resul
       // Clé vide = on conserve la clé enregistrée (jamais réaffichée).
       apiKeyEnc: bool(form, "translationClearKey") ? "" : apiKey ? encryptSecret(apiKey) : current.translation.apiKeyEnc,
       endpoint: str(form, "translationEndpoint"),
+      email: str(form, "translationEmail"),
     } : current.translation,
     catalog: { badges, vatRates },
+    // Plan de comptes de l'export FEC : un champ par taux de TVA et par moyen de paiement.
+    accounting: has("acc_journal") ? {
+      journalCode: str(form, "acc_journal").toUpperCase(),
+      journalLabel: str(form, "acc_journalLabel"),
+      sales: Object.fromEntries([...form.keys()].filter((k) => k.startsWith("acc_sales_")).map((k) => [k.slice(10), str(form, k).toUpperCase()]).filter(([, v]) => v)),
+      vat: Object.fromEntries([...form.keys()].filter((k) => k.startsWith("acc_vat_")).map((k) => [k.slice(8), str(form, k).toUpperCase()]).filter(([, v]) => v)),
+      payment: Object.fromEntries([...form.keys()].filter((k) => k.startsWith("acc_pay_")).map((k) => [k.slice(8), str(form, k).toUpperCase()]).filter(([, v]) => v)),
+      defaultSales: str(form, "acc_defaultSales").toUpperCase(),
+      defaultVat: str(form, "acc_defaultVat").toUpperCase(),
+      defaultPayment: str(form, "acc_defaultPayment").toUpperCase(),
+      roundingDebit: str(form, "acc_roundingDebit").toUpperCase(),
+      roundingCredit: str(form, "acc_roundingCredit").toUpperCase(),
+    } : current.accounting,
     customers: { accountsEnabled: bool(form, "accountsEnabled") },
   };
   const parsed = ConfigSchema.safeParse(candidate);

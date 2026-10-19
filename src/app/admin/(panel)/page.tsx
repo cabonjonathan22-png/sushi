@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SubmitButton } from "@/components/admin/forms";
+import { ACCOUNTED } from "@/lib/accounting-db";
 import { adminContext } from "@/lib/admin";
 import { db } from "@/lib/db";
 import { euros } from "@/lib/money";
@@ -18,7 +19,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const to = zonedTime(addDays(today, 1), "00:00");
   const [todayOrders, active] = await Promise.all([
     db.order.findMany({
-      where: { restaurantId: current.id, placedAt: { gte: from, lt: to }, status: { notIn: ["CANCELLED", "PENDING_PAYMENT"] } },
+      where: { ...ACCOUNTED, restaurantId: current.id, placedAt: { gte: from, lt: to }, status: { notIn: ["CANCELLED", "PENDING_PAYMENT"] } },
       select: { totalCents: true, mode: true },
     }),
     db.order.count({ where: { restaurantId: current.id, status: { in: ACTIVE_STATUSES } } }),

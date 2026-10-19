@@ -6,15 +6,22 @@ import { db } from "./db";
 import type { VatLine } from "./money";
 import { addDays, zonedTime } from "./time";
 
+/**
+ * Commandes comptabilisées par CE système : l'historique importé de l'ancien site (WooCommerce)
+ * reste consultable mais n'entre ni dans la comptabilité, ni dans les clôtures, ni dans les exports.
+ */
+export const ACCOUNTED = { source: { not: "IMPORT_WP" as const } };
+
 /** Ventes confirmées dont la date de service est comprise entre from et to (inclus, AAAA-MM-JJ). */
 export async function loadSales(restaurantIds: string[], from: string, to: string) {
   const orders = await db.order.findMany({
     where: {
+      ...ACCOUNTED,
       restaurantId: { in: restaurantIds },
       status: { notIn: ["CANCELLED", "PENDING_PAYMENT"] },
       slotStart: { gte: zonedTime(from, "00:00"), lt: zonedTime(addDays(to, 1), "00:00") },
     },
-    include: { lines: { select: { name: true, quantity: true, totalCents: true } } },
+    include: { lines: { select: { name: true, variantLabel: true, categoryName: true, quantity: true, unitPriceCents: true, vatRate: true, totalCents: true }, orderBy: { sortOrder: "asc" } } },
     orderBy: { slotStart: "asc" },
   });
   return orders;
@@ -22,8 +29,8 @@ export async function loadSales(restaurantIds: string[], from: string, to: strin
 
 export async function loadRefunds(restaurantIds: string[], from: string, to: string) {
   return db.refund.findMany({
-    where: { order: { restaurantId: { in: restaurantIds } }, createdAt: { gte: zonedTime(from, "00:00"), lt: zonedTime(addDays(to, 1), "00:00") } },
-    include: { order: { select: { reference: true, restaurantId: true } } },
+    where: { order: { ...ACCOUNTED, restaurantId: { in: restaurantIds } }, createdAt: { gte: zonedTime(from, "00:00"), lt: zonedTime(addDays(to, 1), "00:00") } },
+    include: { order: { select: { reference: true, restaurantId: true, paymentMethod: true, totalCents: true, vatBreakdown: true } } },
     orderBy: { createdAt: "asc" },
   });
 }
@@ -43,7 +50,7 @@ const GENESIS = "0".repeat(64);
 export async function closeDay(restaurantId: string, date: string, closedById: string) {
   const { report } = await reportFor([restaurantId], date, date, "day");
   const pending = await db.order.count({
-    where: { restaurantId, status: { in: ["NEW", "ACCEPTED", "PREPARING", "READY", "OUT_FOR_DELIVERY"] }, slotStart: { gte: zonedTime(date, "00:00"), lt: zonedTime(addDays(date, 1), "00:00") } },
+    where: { ...ACCOUNTED, restaurantId, status: { in: ["NEW", "ACCEPTED", "PREPARING", "READY", "OUT_FOR_DELIVERY"] }, slotStart: { gte: zonedTime(date, "00:00"), lt: zonedTime(addDays(date, 1), "00:00") } },
   });
   if (pending > 0) throw new Error(`${pending} commande(s) de ce jour ne sont pas terminées ou annulées.`);
   return db.$transaction(async (tx) => {
@@ -73,4 +80,21 @@ export async function verifyClosures(restaurantId: string): Promise<string | nul
     prev = c.hash;
   }
   return null;
+}
+
+/** Commandes annulées (du nouveau site) dont la date de service tombe dans la période. */
+export async function loadCancellations(restaurantIds: string[], from: string, to: string) {
+  return db.order.findMany({
+    where: { ...ACCOUNTED, restaurantId: { in: restaurantIds }, status: "CANCELLED", slotStart: { gte: zonedTime(from, "00:00"), lt: zonedTime(addDays(to, 1), "00:00") } },
+    select: { reference: true, restaurantId: true, slotStart: true, cancelledAt: true, cancelReason: true, totalCents: true, paymentMethod: true, paymentStatus: true, customerName: true },
+    orderBy: { slotStart: "asc" },
+  });
+}
+
+/** Clôtures journalières de la période. */
+export async function loadClosures(restaurantIds: string[], from: string, to: string) {
+  return db.dailyClosure.findMany({
+    where: { restaurantId: { in: restaurantIds }, date: { gte: from, lte: to } },
+    orderBy: [{ date: "asc" }, { restaurantId: "asc" }],
+  });
 }

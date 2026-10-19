@@ -6,7 +6,7 @@ import { authorize, logAction } from "@/lib/admin";
 import { readConfig } from "@/lib/config";
 import { db } from "@/lib/db";
 import { sourceHash, translateMany } from "@/lib/translate";
-import { translationSources, type Group } from "./sources";
+import { translationSources, type Group } from "@/lib/translation-sources";
 
 type Result = { ok?: string; error?: string } | undefined;
 const GROUPS: Group[] = ["menu", "site", "ui"];
@@ -25,13 +25,15 @@ export async function pretranslateAction(_: Result, form: FormData): Promise<Res
     if (g === "ui" && (locale === "fr" || locale === "en")) continue; // dictionnaires intégrés
     const { items, sourceLocale } = await translationSources(g);
     total += items.filter((i) => i.text.trim()).length;
-    done += (await translateMany(items, locale, { sourceLocale })).size;
+    done += (await translateMany(items, locale, { sourceLocale, wait: true })).size;
   }
   clearDictionaryCache(locale);
   await logAction(staff, "translations.pretranslate", "Translation", locale, null, { locale, done, total });
   revalidatePath("/", "layout");
   return done < total
-    ? { error: `${done} texte(s) sur ${total} traduits. Le service n'a pas répondu pour les autres : vérifiez la clé API puis relancez.` }
+    ? { error: config.translation.provider === "mymemory"
+        ? `${done} texte(s) sur ${total} traduits. Le quota gratuit du jour est atteint : la suite se fera automatiquement les jours suivants (ou relancez demain).`
+        : `${done} texte(s) sur ${total} traduits. Le service n'a pas répondu pour les autres : vérifiez la clé API puis relancez.` }
     : { ok: `${done} texte(s) traduits en « ${locale} ».` };
 }
 

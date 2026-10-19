@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ActionForm, SubmitButton } from "@/components/admin/forms";
 import { LANGUAGES } from "@/i18n/languages";
 import { adminContext } from "@/lib/admin";
-import { STATUS_LABELS } from "@/lib/catalog-constants";
+import { PAYMENT_METHOD_LABELS, STATUS_LABELS } from "@/lib/catalog-constants";
 import { getConfig } from "@/lib/config";
 import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
@@ -148,18 +148,24 @@ export default async function ConfigurationPage() {
           </fieldset>
         </Section>
 
-        <Section title="Traduction automatique de la carte" hint="Traduit les noms et descriptions des plats, catégories et textes du site dans la langue du client. Sans service, seule l'interface est traduite.">
+        <Section title="Traduction automatique de la carte" hint="Traduit les plats, catégories et textes du site dans la langue du client, automatiquement et une seule fois par texte (les traductions sont conservées). Le service gratuit MyMemory fonctionne sans inscription.">
           <div>
             <label className="label" htmlFor="tp">Service</label>
             <select id="tp" name="translationProvider" defaultValue={c.translation.provider} className="input">
-              <option value="none">Aucun</option>
-              <option value="deepl">DeepL (recommandé)</option>
+              <option value="mymemory">MyMemory — gratuit, sans inscription</option>
+              <option value="deepl">DeepL — meilleure qualité (gratuit jusqu'à 500 000 caractères/mois, avec compte)</option>
               <option value="google">Google Traduction</option>
               <option value="libretranslate">LibreTranslate (auto-hébergé)</option>
+              <option value="none">Aucun (interface seule)</option>
             </select>
           </div>
           <div>
-            <label className="label" htmlFor="tk">Clé API {c.translation.apiKeyEnc && <span className="font-normal text-green-700">— enregistrée</span>}</label>
+            <label className="label" htmlFor="tm">E-mail de contact (MyMemory)</label>
+            <input id="tm" name="translationEmail" type="email" defaultValue={c.translation.email} className="input" placeholder="contact@votre-restaurant.fr" />
+            <p className="mt-1 text-xs text-neutral-600">Facultatif : porte le quota gratuit de 5 000 à 50 000 caractères par jour. La carte complète représente environ 8 000 caractères par langue.</p>
+          </div>
+          <div>
+            <label className="label" htmlFor="tk">Clé API (DeepL, Google) {c.translation.apiKeyEnc && <span className="font-normal text-green-700">— enregistrée</span>}</label>
             <input id="tk" name="translationApiKey" type="password" autoComplete="off" placeholder={c.translation.apiKeyEnc ? "•••••••• (laisser vide pour conserver)" : ""} className="input" />
             {c.translation.apiKeyEnc && <label className="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" name="translationClearKey" className="h-4 w-4" />Supprimer la clé enregistrée</label>}
           </div>
@@ -176,6 +182,43 @@ export default async function ConfigurationPage() {
             <textarea id="vr" name="vatRates" className="input min-h-44 font-mono text-sm" defaultValue={c.catalog.vatRates.map((v) => `${(v.value / 100).toString().replace(".", ",")};${v.label}`).join("\n")} />
           </div>
         </Section>
+
+        <section id="comptabilite" className="card grid gap-4 p-5 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <h2 className="text-3xl">Comptabilité (export expert-comptable)</h2>
+            <p className="text-sm text-neutral-600">Numéros de comptes utilisés dans le fichier d'écritures (FEC) de Comptabilité. Valeurs par défaut du plan comptable général : faites-les valider par votre expert-comptable.</p>
+          </div>
+          <div><label className="label" htmlFor="acc_journal">Code du journal des ventes</label><input id="acc_journal" name="acc_journal" maxLength={6} defaultValue={c.accounting.journalCode} className="input uppercase" /></div>
+          <div><label className="label" htmlFor="acc_journalLabel">Libellé du journal</label><input id="acc_journalLabel" name="acc_journalLabel" maxLength={40} defaultValue={c.accounting.journalLabel} className="input" /></div>
+          <fieldset className="sm:col-span-2">
+            <legend className="label">Par taux de TVA : compte de ventes (HT) / compte de TVA collectée</legend>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {c.catalog.vatRates.map((v) => (
+                <div key={v.value} className="rounded-xl border border-neutral-200 p-3">
+                  <p className="mb-2 text-sm font-semibold">{(v.value / 100).toLocaleString("fr-FR")} %</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input aria-label={`Compte de ventes ${v.value / 100} %`} name={`acc_sales_${v.value}`} defaultValue={c.accounting.sales[String(v.value)] ?? ""} placeholder={c.accounting.defaultSales} className="input font-mono" />
+                    <input aria-label={`Compte de TVA ${v.value / 100} %`} name={`acc_vat_${v.value}`} defaultValue={c.accounting.vat[String(v.value)] ?? ""} placeholder={c.accounting.defaultVat} className="input font-mono" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset className="sm:col-span-2">
+            <legend className="label">Par moyen de paiement : compte de trésorerie ou d'attente (débit)</legend>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {Object.entries(PAYMENT_METHOD_LABELS).map(([m, label]) => (
+                <div key={m}><label className="text-sm" htmlFor={`acc_pay_${m}`}>{label}</label>
+                  <input id={`acc_pay_${m}`} name={`acc_pay_${m}`} defaultValue={c.accounting.payment[m] ?? ""} placeholder={c.accounting.defaultPayment} className="input font-mono" /></div>
+              ))}
+            </div>
+          </fieldset>
+          <div><label className="label" htmlFor="acc_defaultSales">Compte de ventes par défaut / TVA par défaut</label>
+            <div className="grid grid-cols-2 gap-2"><input id="acc_defaultSales" name="acc_defaultSales" defaultValue={c.accounting.defaultSales} className="input font-mono" /><input aria-label="Compte de TVA par défaut" name="acc_defaultVat" defaultValue={c.accounting.defaultVat} className="input font-mono" /></div></div>
+          <div><label className="label" htmlFor="acc_defaultPayment">Compte d'attente par défaut</label><input id="acc_defaultPayment" name="acc_defaultPayment" defaultValue={c.accounting.defaultPayment} className="input font-mono" /></div>
+          <div><label className="label" htmlFor="acc_roundingDebit">Écarts d'arrondi : charge / produit</label>
+            <div className="grid grid-cols-2 gap-2"><input id="acc_roundingDebit" name="acc_roundingDebit" defaultValue={c.accounting.roundingDebit} className="input font-mono" /><input aria-label="Compte de produit pour les écarts d'arrondi" name="acc_roundingCredit" defaultValue={c.accounting.roundingCredit} className="input font-mono" /></div></div>
+        </section>
 
         <Section title="Clients">
           <Check name="accountsEnabled" label="Proposer les comptes clients (historique, adresses, recommander)" on={c.customers.accountsEnabled} hint="La commande sans compte reste toujours possible." />

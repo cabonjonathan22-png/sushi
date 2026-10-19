@@ -34,6 +34,9 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
         <span className="chip bg-brand-100 px-3 py-1 text-base">{STATUS_LABELS[order.status]}</span>
         <span className="text-neutral-600">{order.reference} · passée le {formatDateTime(order.placedAt)}</span>
       </div>
+      {order.source === "IMPORT_WP" && (
+        <p className="rounded-xl bg-neutral-100 p-3 text-sm text-neutral-700">Commande de l'ancien site (historique importé de WordPress) : consultable, mais exclue de la comptabilité et des clôtures.</p>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
         <div className="space-y-6">

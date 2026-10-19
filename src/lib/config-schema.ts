@@ -19,6 +19,9 @@ export const VatRateDef = z.object({ value: z.number().int().min(0).max(3000), l
 
 const STATUSES = ["ACCEPTED", "PREPARING", "READY", "OUT_FOR_DELIVERY", "COMPLETED", "CANCELLED"] as const;
 
+/** Numéro de compte comptable (chiffres, éventuellement lettres pour les comptes auxiliaires). */
+const Account = z.string().trim().regex(/^[0-9A-Z]{3,12}$/, "Compte comptable invalide (3 à 12 chiffres ou lettres)");
+
 export const ConfigSchema = z.object({
   orders: z.object({
     /** Les commandes arrivent directement « Acceptées » (pas de clic « Accepter »). */
@@ -91,15 +94,37 @@ export const ConfigSchema = z.object({
   }).prefault({}),
   translation: z.object({
     /** Service de traduction automatique du contenu (plats, catégories, textes). */
-    provider: z.enum(["none", "deepl", "google", "libretranslate"]).default("none"),
+    provider: z.enum(["none", "mymemory", "deepl", "google", "libretranslate"]).default("mymemory"),
     /** Clé API chiffrée (jamais réaffichée). */
     apiKeyEnc: z.string().default(""),
     /** Adresse du serveur LibreTranslate (si ce service est choisi). */
     endpoint: z.union([z.literal(""), z.string().url()]).default(""),
+    /** E-mail de contact transmis à MyMemory : quota gratuit porté de 5 000 à 50 000 caractères par jour. */
+    email: z.union([z.literal(""), z.string().email()]).default(""),
   }).prefault({}),
   customers: z.object({
     /** Comptes clients (historique, adresses) proposés sur le site. */
     accountsEnabled: z.boolean().default(true),
+  }).prefault({}),
+  /**
+   * Plan de comptes de l'export « expert-comptable » (écritures au format FEC).
+   * Valeurs par défaut du plan comptable général, à faire valider par l'expert-comptable.
+   */
+  accounting: z.object({
+    journalCode: z.string().regex(/^[A-Z0-9]{1,6}$/).default("VE"),
+    journalLabel: z.string().max(40).default("Ventes"),
+    /** Taux (points de base, ex. "1000" = 10 %) → compte. */
+    sales: z.record(z.string(), Account).default({ "550": "707055", "1000": "707100", "2000": "707200" }),
+    vat: z.record(z.string(), Account).default({ "550": "445711", "1000": "445712", "2000": "445713" }),
+    /** Moyen de paiement → compte de trésorerie ou d'attente. */
+    payment: z.record(z.string(), Account).default({
+      CASH: "530000", CARD_TERMINAL: "511500", ONLINE_CARD: "467100", MEAL_VOUCHER_PAPER: "511600", MEAL_VOUCHER_CARD: "511700",
+    }),
+    defaultSales: Account.default("707000"),
+    defaultVat: Account.default("445710"),
+    defaultPayment: Account.default("471000"),
+    roundingDebit: Account.default("658000"),
+    roundingCredit: Account.default("758000"),
   }).prefault({}),
 });
 

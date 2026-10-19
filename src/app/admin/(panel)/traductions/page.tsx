@@ -6,9 +6,11 @@ import { getConfig } from "@/lib/config";
 import { db } from "@/lib/db";
 import { sourceHash } from "@/lib/translate";
 import { pretranslateAction, saveTranslationsAction } from "./actions";
-import { translationSources, type Group } from "./sources";
+import { translationSources, type Group } from "@/lib/translation-sources";
 
 export const metadata = { title: "Traductions" };
+// « Tout traduire » avec le service gratuit : jusqu'à quelques minutes pour toute la carte.
+export const maxDuration = 300;
 
 const TABS: { id: Group; label: string }[] = [
   { id: "menu", label: "Carte" },

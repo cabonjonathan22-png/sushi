@@ -54,7 +54,9 @@ export async function getDictionary(locale: string): Promise<Dictionary> {
     { sourceLocale: "en" },
   );
   const dict = Object.fromEntries(keys.map((k) => [k, translated.get(`ui|public|${k}`) ?? en[k]])) as Dictionary;
-  memory.set(locale, { at: Date.now(), dict });
+  // Traduction encore incomplète (en cours en arrière-plan) : mémorisée 30 s seulement.
+  const complete = translated.size >= keys.length;
+  memory.set(locale, { at: complete ? Date.now() : Date.now() - 10 * 60_000 + 30_000, dict });
   return dict;
 }
 

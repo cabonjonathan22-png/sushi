@@ -1,11 +1,11 @@
 import "server-only";
 import { en } from "@/i18n/en";
 import { menuTranslationItems } from "@/i18n/content";
-import { db } from "@/lib/db";
-import { loadMenu } from "@/lib/menu";
-import { getSiteSettings } from "@/lib/restaurants";
-import { readConfig } from "@/lib/config";
-import type { TranslateItem } from "@/lib/translate";
+import { readConfig } from "./config";
+import { db } from "./db";
+import { loadMenu } from "./menu";
+import { getSiteSettings } from "./restaurants";
+import { translateMany, type TranslateItem } from "./translate";
 
 export type Group = "menu" | "site" | "ui";
 
@@ -41,4 +41,22 @@ export async function translationSources(group: Group): Promise<{ items: (Transl
     sourceLocale: config.region.defaultLocale,
     items: menuTranslationItems(menu).map((i) => ({ ...i, context: `${names.get(i.entityId) ?? ""} — ${FIELD[i.field] ?? i.field}` })),
   };
+}
+
+/**
+ * Traduit d'avance tout ce qui manque (carte, textes du site, interface) dans chaque langue
+ * proposée aux clients. Appelé par la tâche planifiée : avec le service gratuit, le quota
+ * journalier est consommé petit à petit, chaque texte n'étant traduit qu'une seule fois.
+ */
+export async function pretranslateAll(): Promise<void> {
+  const config = await readConfig();
+  if (config.translation.provider === "none") return;
+  const targets = config.region.languages.filter((l) => l !== config.region.defaultLocale);
+  for (const locale of targets) {
+    for (const group of ["menu", "site", "ui"] as Group[]) {
+      if (group === "ui" && (locale === "fr" || locale === "en")) continue;
+      const { items, sourceLocale } = await translationSources(group);
+      await translateMany(items, locale, { sourceLocale, wait: true });
+    }
+  }
 }
