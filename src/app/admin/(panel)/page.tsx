@@ -8,6 +8,11 @@ import { ACTIVE_STATUSES } from "@/lib/order-status";
 import { can } from "@/lib/permissions";
 import { localDate, localHHMM, zonedTime, addDays } from "@/lib/time";
 import { pauseOrdersAction } from "./actions";
+import { pauseUntilText } from "@/lib/pause";
+
+/** Libellés de durée en français pour le back-office. */
+const FR_PAUSE: Record<string, string> = { "pause.untilFurther": "jusqu'à nouvel ordre", "pause.untilTime": "jusqu'à {time}", "pause.untilDay": "jusqu'au {date} inclus", "pause.untilDateTime": "jusqu'au {date} à {time}" };
+const frPause = (key: string, vars: Record<string, string> = {}) => FR_PAUSE[key]!.replace(/\{(\w+)\}/g, (_, k: string) => vars[k] ?? "");
 
 export default async function Dashboard({ searchParams }: { searchParams: Promise<{ ok?: string }> }) {
   const { staff, current } = await adminContext();
@@ -51,36 +56,56 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       </div>
 
       {can(staff.actor, "orders.update", current.id) && (
-        <section className={`card p-5 ${paused ? "border-red-300 bg-red-50" : ""}`}>
-          <h2 className="text-3xl">Commandes en ligne</h2>
-          {paused ? (
-            <>
-              <p className="mt-1 font-semibold text-red-800">
-                FERMÉES jusqu'à {localHHMM(current.ordersPausedUntil!)} {localDate(current.ordersPausedUntil!) !== today ? `le ${current.ordersPausedUntil!.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}` : ""}
-                {current.ordersPausedReason && ` — « ${current.ordersPausedReason} »`}
+        <section className={`card p-5 ${paused ? "border-red-300 bg-red-50" : ""}`} aria-labelledby="online-orders">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 id="online-orders" className="me-auto text-3xl">Commandes en ligne — {current.name}</h2>
+            <span className={`chip px-3 py-1 text-sm ${paused ? "bg-red-700 text-white" : "bg-green-100 text-green-800"}`}>{paused ? "FERMÉES" : "Ouvertes"}</span>
+          </div>
+          {paused && (
+            <div className="mt-2 space-y-3">
+              <p className="text-lg font-semibold text-red-800">
+                Aucune commande n'est possible, pour aucun jour, {pauseUntilText(current.ordersPausedUntil!, frPause, "fr", current.timezone)}.
               </p>
-              <form action={pauseOrdersAction} className="mt-3">
+              {current.ordersPausedReason && <p className="rounded-xl bg-white p-3 text-sm">Message affiché aux clients : « {current.ordersPausedReason} »</p>}
+              <form action={pauseOrdersAction}>
                 <input type="hidden" name="restaurantId" value={current.id} />
-                <input type="hidden" name="minutes" value="0" />
-                <SubmitButton className="btn bg-green-700 text-lg text-white">Rouvrir les commandes</SubmitButton>
+                <input type="hidden" name="duree" value="reopen" />
+                <SubmitButton className="btn bg-green-700 text-lg text-white hover:bg-green-800">Rouvrir les commandes maintenant</SubmitButton>
               </form>
-            </>
-          ) : (
-            <form action={pauseOrdersAction} className="mt-2 grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+            </div>
+          )}
+          <details className="mt-3" open={!paused}>
+            <summary className="cursor-pointer text-sm font-semibold text-neutral-700">{paused ? "Modifier la fermeture ou le message" : "Fermer les commandes en ligne"}</summary>
+            <form action={pauseOrdersAction} className="mt-3 grid gap-4">
               <input type="hidden" name="restaurantId" value={current.id} />
               <div>
-                <label className="label" htmlFor="reason">Message affiché aux clients (facultatif)</label>
-                <input id="reason" name="reason" className="input" placeholder="Trop de commandes, retour dans 30 minutes" />
+                <label className="label" htmlFor="reason">Message affiché aux clients (bandeau sur tout le site)</label>
+                <input id="reason" name="reason" maxLength={200} defaultValue={paused ? current.ordersPausedReason : ""} className="input" placeholder="Congés annuels : réouverture le 4 novembre. Merci de votre fidélité !" />
               </div>
-              <select name="minutes" className="input" defaultValue="30" aria-label="Durée">
-                <option value="15">15 minutes</option>
-                <option value="30">30 minutes</option>
-                <option value="60">1 heure</option>
-                <option value="-1">Jusqu'à demain</option>
-              </select>
-              <SubmitButton className="btn-danger text-lg">Fermer les commandes maintenant</SubmitButton>
+              <fieldset>
+                <legend className="label">Durée de la fermeture</legend>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {[
+                    ["30", "30 minutes (coup de feu)"], ["60", "1 heure"], ["120", "2 heures"],
+                    ["today", "Toute la journée d'aujourd'hui"], ["indefinite", "Jusqu'à nouvel ordre"],
+                  ].map(([v, l]) => (
+                    <label key={v} className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white p-3">
+                      <input type="radio" name="duree" value={v} defaultChecked={v === "30"} className="h-4 w-4" />{l}
+                    </label>
+                  ))}
+                  <label className="flex flex-wrap items-center gap-2 rounded-xl border border-neutral-200 bg-white p-3">
+                    <input type="radio" name="duree" value="date" className="h-4 w-4" />Jusqu'au (inclus)
+                    <input type="date" name="date" min={today} defaultValue={addDays(today, 1)} className="input min-h-9 w-auto py-1" aria-label="Date de réouverture (veille incluse)" />
+                  </label>
+                </div>
+                <p className="mt-2 text-xs text-neutral-600">
+                  Pendant la fermeture, les clients voient la carte mais ne peuvent commander pour aucun jour. Pour des congés connus à l'avance,
+                  vous pouvez aussi utiliser « Fermetures exceptionnelles » (Mon restaurant → Horaires) : seuls ces jours-là sont bloqués.
+                </p>
+              </fieldset>
+              <SubmitButton className="btn-danger justify-self-start text-lg">{paused ? "Mettre à jour la fermeture" : "Fermer les commandes"}</SubmitButton>
             </form>
-          )}
+          </details>
         </section>
       )}
 

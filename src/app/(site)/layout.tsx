@@ -3,7 +3,9 @@ import { SiteFooter, SiteHeader } from "@/components/site/SiteChrome";
 import { I18nProvider } from "@/i18n/client";
 import { getI18n } from "@/i18n/server";
 import { getConfig } from "@/lib/config";
-import { getPublicRestaurant, getSiteSettings, heroImage, listRestaurants } from "@/lib/restaurants";
+import { getPublicRestaurant, getSiteSettings, heroImage, listRestaurants, pausedRestaurants } from "@/lib/restaurants";
+import { pauseUntilText } from "@/lib/pause";
+import { translateTexts } from "@/i18n/content";
 
 // Toutes les pages du site lisent la base (horaires, pied de page) et la langue : rendu à la demande.
 export const dynamic = "force-dynamic";
@@ -26,7 +28,14 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
   const [list, config, settings, i18n] = await Promise.all([listRestaurants(), getConfig(), getSiteSettings(), getI18n()]);
   const restaurant = list[0] ? await getPublicRestaurant(list[0].slug) : null;
-  const { t, locale, dict } = i18n;
+  const { t, locale, dict, defaultLocale } = i18n;
+  // Message de fermeture saisi dans la langue du restaurant : traduit pour le visiteur.
+  const paused = await Promise.all((await pausedRestaurants()).map(async (p) => ({
+    ...p,
+    reason: p.ordersPausedReason && locale !== defaultLocale
+      ? (await translateTexts("restaurant", p.id, { pausedReason: p.ordersPausedReason }, locale)).pausedReason
+      : p.ordersPausedReason,
+  })));
   const languages = [...new Set([config.region.defaultLocale, ...config.region.languages, locale])];
   const country = config.region.country;
   return (
@@ -35,6 +44,13 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
         <a href="#contenu" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2">
           {t("nav.skip")}
         </a>
+        {/* Commandes fermées (pause) : bandeau sur tout le site, avec le message du restaurant. */}
+        {paused.map((p) => (
+          <p key={p.id} role="status" className="bg-red-800 px-4 py-2.5 text-center text-sm font-semibold text-white">
+            {t(list.length > 1 ? "pause.bannerNamed" : "pause.banner", { name: p.name, until: pauseUntilText(p.ordersPausedUntil!, t, locale, p.timezone) })}
+            {p.reason && <span className="ms-1 font-normal">{p.reason}</span>}
+          </p>
+        ))}
         {config.site.announcementActive && config.site.announcement && (
           <p role="status" className="bg-char px-4 py-2 text-center text-sm font-medium text-paper">{config.site.announcement}</p>
         )}

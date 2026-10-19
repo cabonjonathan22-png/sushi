@@ -34,6 +34,7 @@ export const getPublicRestaurant = cache(async (slug: string) => {
     noAlcoholDelivery: r.noAlcoholDelivery,
     paused: isPaused(r, now),
     pausedReason: r.ordersPausedReason,
+    pausedUntil: isPaused(r, now) ? r.ordersPausedUntil : null,
     openNow: isOpenAt(now, r.openingHours, r.closures, r.timezone),
     hours: r.openingHours.map((h) => ({ weekday: h.weekday, opens: h.opens, closes: h.closes, period: h.period })),
     closures: r.closures.map((c) => ({ startDate: c.startDate, endDate: c.endDate, reason: c.reason })),
@@ -112,3 +113,12 @@ export const deliveryTowns = cache(async (): Promise<DeliveryTown[]> => {
   }
   return [...towns.values()].sort((a, b) => a.city.localeCompare(b.city));
 });
+
+/** Restaurants dont les commandes en ligne sont fermées (bandeau du site). */
+export const pausedRestaurants = cache(() =>
+  db.restaurant.findMany({
+    where: { active: true, ordersPausedUntil: { gt: new Date() } },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    select: { id: true, name: true, slug: true, timezone: true, ordersPausedUntil: true, ordersPausedReason: true },
+  }),
+);

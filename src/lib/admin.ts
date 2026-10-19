@@ -19,7 +19,7 @@ export const adminContext = cache(async (permission?: Permission) => {
   const restaurants = await db.restaurant.findMany({
     where: restaurantScope(staff.actor),
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-    select: { id: true, name: true, slug: true, ordersPausedUntil: true, ordersPausedReason: true, active: true },
+    select: { id: true, name: true, slug: true, ordersPausedUntil: true, ordersPausedReason: true, active: true, timezone: true },
   });
   const wanted = (await cookies()).get(ADMIN_RESTAURANT_COOKIE)?.value;
   const current = restaurants.find((r) => r.id === wanted) ?? restaurants[0] ?? null;

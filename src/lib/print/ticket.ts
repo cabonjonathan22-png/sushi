@@ -24,23 +24,34 @@ export interface Ticket {
   copyLabel?: string;
 }
 
+/** « LUN. 20/10 » (heure de Paris, comme les créneaux). */
+function shortDay(at: Date): string {
+  return new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", weekday: "short", day: "2-digit", month: "2-digit" }).format(at).toUpperCase();
+}
+
 export function buildTicket(o: FullOrder, copyLabel?: string): Ticket {
   const L: TicketLine[] = [];
   L.push({ kind: "center", text: o.restaurant.name.toUpperCase() });
   if (copyLabel) L.push({ kind: "center", text: `— ${copyLabel} —` });
   L.push({ kind: "title", text: `N° ${o.dailyNumber}` });
   L.push({ kind: "big", text: MODE_LABELS[o.mode].toUpperCase() });
-  L.push({ kind: "big", text: `${localHHMM(o.slotStart)}` });
+  // Jour et heure en gros (« LUN. 20/10 19:30 ») : lisibles d'un coup d'œil, même en livraison.
+  L.push({ kind: "big", text: `${shortDay(o.slotStart)} ${localHHMM(o.slotStart)}` });
   L.push({ kind: "center", text: formatDay(localDate(o.slotStart)) });
   L.push({ kind: "rule" });
-  L.push({ kind: "text", text: o.customerName, bold: true });
-  L.push({ kind: "text", text: `Tél : ${o.customerPhone}`, bold: true });
   if (o.mode === "DELIVERY") {
+    // Bloc livreur : client, téléphone en gros, adresse complète, consignes.
+    L.push({ kind: "text", text: `CLIENT : ${o.customerName}`, bold: true });
+    L.push({ kind: "big", text: o.customerPhone });
+    L.push({ kind: "text", text: "ADRESSE DE LIVRAISON :", bold: true });
     L.push({ kind: "text", text: o.addressStreet, bold: true });
-    if (o.addressExtra) L.push({ kind: "text", text: o.addressExtra });
+    if (o.addressExtra) L.push({ kind: "text", text: o.addressExtra, bold: true });
     L.push({ kind: "text", text: `${o.postalCode} ${o.city.toUpperCase()}`, bold: true });
-    if (o.deliveryNotes) L.push({ kind: "text", text: `Livreur : ${o.deliveryNotes}` });
+    if (o.deliveryNotes) L.push({ kind: "text", text: `Consignes : ${o.deliveryNotes}` });
     if (o.zoneName) L.push({ kind: "text", text: o.zoneName });
+  } else {
+    L.push({ kind: "text", text: o.customerName, bold: true });
+    L.push({ kind: "text", text: `Tél : ${o.customerPhone}`, bold: true });
   }
   L.push({ kind: "rule" });
   for (const l of o.lines) {
@@ -60,6 +71,11 @@ export function buildTicket(o: FullOrder, copyLabel?: string): Ticket {
   L.push({ kind: "text", text: PAYMENT_METHOD_LABELS[o.paymentMethod] });
   const paid = o.paymentStatus === "PAID" || o.paymentStatus === "PARTIALLY_REFUNDED";
   L.push({ kind: "big", text: paid ? "PAYÉ" : o.paymentStatus === "REFUNDED" ? "REMBOURSÉ" : "À ENCAISSER" });
+  // Livraison non payée : le livreur voit le montant à encaisser et le moyen de paiement.
+  if (o.mode === "DELIVERY" && !paid && o.paymentStatus !== "REFUNDED") {
+    L.push({ kind: "big", text: euros(o.totalCents) });
+    L.push({ kind: "center", text: `Paiement : ${PAYMENT_METHOD_LABELS[o.paymentMethod]}` });
+  }
   if (o.lines.some((l) => l.isAlcohol)) L.push({ kind: "center", text: "Contient de l'alcool : vérifier 18 ans" });
   L.push({ kind: "center", text: o.reference });
   L.push({ kind: "feed" });

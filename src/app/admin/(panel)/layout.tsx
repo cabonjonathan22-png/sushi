@@ -87,7 +87,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <div className="max-h-[80dvh] overflow-y-auto p-4 pt-0">{switcher}{nav}{account}</div>
         </details>
       </header>
-      <main className="min-w-0 p-4 sm:p-6 lg:p-8">{children}</main>
+      <main className="min-w-0 p-4 sm:p-6 lg:p-8">
+        {current?.ordersPausedUntil && current.ordersPausedUntil > new Date() && (
+          <Link href="/admin" className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-red-700 px-4 py-3 font-semibold text-white">
+            <span>Commandes en ligne FERMÉES pour {current.name}{current.ordersPausedReason ? ` — « ${current.ordersPausedReason} »` : ""}</span>
+            <span className="underline">Gérer / rouvrir</span>
+          </Link>
+        )}
+        {children}
+      </main>
     </div>
   );
 }

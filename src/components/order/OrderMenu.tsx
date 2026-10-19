@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { BadgeDef } from "@/lib/config-schema";
 import { BadgeChip } from "../site/BadgeChip";
 import { useI18n } from "@/i18n/client";
+import { pauseUntilText } from "@/lib/pause";
 import { money } from "@/lib/money";
 import { CartPanel } from "./CartPanel";
 import { useCart } from "./cart-store";
@@ -33,7 +34,7 @@ export function OrderMenu({
   extrasLabel: string;
   multiRestaurant?: boolean;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const cart = useCart(restaurant.slug);
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
   const [query, setQuery] = useState("");
@@ -141,7 +142,9 @@ export function OrderMenu({
           {translated && <p className="mt-1 text-xs text-neutral-500">{t("menu.translated")}</p>}
           {restaurant.paused && (
             <p role="alert" className="mt-3 rounded-xl bg-red-50 p-3 font-semibold text-red-800">
-              {restaurant.pausedReason || t("menu.paused")} {t("menu.browse")}
+              {restaurant.pausedUntil ? t("pause.banner", { until: pauseUntilText(new Date(restaurant.pausedUntil), t, locale, restaurant.timezone) }) : t("menu.paused")}
+              {restaurant.pausedReason && <span className="mt-1 block font-normal">{restaurant.pausedReason}</span>}
+              <span className="mt-1 block font-normal">{t("menu.browse")}</span>
             </p>
           )}
         </div>
