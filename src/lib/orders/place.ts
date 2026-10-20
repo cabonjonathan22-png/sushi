@@ -51,6 +51,8 @@ export const CheckoutInput = z.object({
   /** Récompense de fidélité choisie (client connecté). */
   rewardId: z.string().trim().max(40).optional(),
   ageConfirmed: z.boolean().default(false),
+  /** Le client a répondu « aucun complément » (sauce, baguettes…). */
+  extrasDeclined: z.boolean().default(false),
   acceptTerms: z.literal(true, { message: "Veuillez accepter les conditions générales de vente." }),
 });
 export type CheckoutInput = z.infer<typeof CheckoutInput>;
@@ -153,9 +155,15 @@ export async function placeOrder(raw: unknown, ctx: { ip: string; customerId?: s
   const cart = priceCart(input.lines, catalogMap(menu), {
     restaurantId: restaurant.id, mode: input.mode, period: slot.period, zone,
     pickupMinimumCents: restaurant.pickupMinimumCents, noAlcoholDelivery: restaurant.noAlcoholDelivery, promo, now,
-    maxLineQuantity: config.orders.maxLineQuantity, reward, pointsBalance,
+    maxLineQuantity: config.orders.maxLineQuantity, reward, pointsBalance, extrasRule: config.extras,
   });
   if (!cart.ok) return { ok: false, errors: cart.errors, cart };
+  // Compléments : le client choisit les siens ou répond « aucun » (la cuisine sait quoi mettre dans le sac).
+  const extrasOffered = [...catalogMap(menu).values()].some((p) => p.isExtra && p.active && !p.outOfStock
+    && (input.mode === "PICKUP" ? p.availablePickup : input.mode === "DELIVERY" ? p.availableDelivery : p.availableDineIn));
+  if (config.extras.askAtCheckout && extrasOffered && cart.extrasCount === 0 && !input.extrasDeclined) {
+    return fail("Choisissez vos compléments (sauce soja, baguettes…) ou indiquez que vous n'en voulez pas.", "EXTRAS_REQUIRED");
+  }
   if (input.promoCode && cart.promoError) return fail(cart.promoError, "PROMO");
   if (reward && cart.rewardError) {
     const messages: Record<string, string> = {
@@ -232,6 +240,7 @@ export async function placeOrder(raw: unknown, ctx: { ip: string; customerId?: s
         totalCents: cart.totalCents,
         vatBreakdown: cart.vatBreakdown as unknown as object,
         ageConfirmed: input.ageConfirmed,
+        extrasDeclined: input.extrasDeclined && cart.extrasCount === 0,
         locale: ctx.locale ?? "",
         lines: {
           create: cart.lines.map((l, i) => ({

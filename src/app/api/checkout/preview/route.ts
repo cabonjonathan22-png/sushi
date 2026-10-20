@@ -36,7 +36,7 @@ export async function POST(req: Request) {
   const zone = input.mode === "DELIVERY" ? r.zones.find((z) => z.id === input.zoneId && z.active) ?? null : null;
   const promo = input.promoCode ? await db.promoCode.findUnique({ where: { code: input.promoCode } }) : null;
 
-  const { loyalty: settings } = await readConfig();
+  const { loyalty: settings, extras } = await readConfig();
   const customer = settings.enabled ? await getCustomer() : null;
   const balance = customer ? await balanceOf(customer.id) : 0;
   const rewards = settings.enabled ? await activeRewards() : [];
@@ -45,7 +45,7 @@ export async function POST(req: Request) {
   const catalog = catalogMap(await loadMenu(r.id));
   const ctx = {
     restaurantId: r.id, mode: input.mode, period: input.period, zone, pickupMinimumCents: r.pickupMinimumCents,
-    noAlcoholDelivery: r.noAlcoholDelivery, promo, now: new Date(), pointsBalance: balance,
+    noAlcoholDelivery: r.noAlcoholDelivery, promo, now: new Date(), pointsBalance: balance, extrasRule: extras,
   };
   const cart = priceCart(input.lines, catalog, { ...ctx, reward: chosen ? toRule(chosen) : null });
   // Sous-total facturé (hors petits plus offerts) : base des minimums des récompenses.

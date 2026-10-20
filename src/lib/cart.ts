@@ -94,6 +94,28 @@ export interface PricingContext {
   /** Récompense de fidélité choisie par le client connecté, et son solde de points. */
   reward?: RewardRule | null;
   pointsBalance?: number;
+  /** Compléments offerts par commande et par palier de montant (Configuration). */
+  extrasRule?: ExtrasRule | null;
+}
+
+export interface ExtrasRule {
+  freePerOrder: number;
+  tiers: { fromCents: number; count: number }[];
+}
+
+/** Compléments offerts par la règle générale pour ce montant (hors compléments). */
+export function extrasFromRule(rule: ExtrasRule | null | undefined, amountCents: number): number {
+  if (!rule) return 0;
+  const tier = rule.tiers.filter((t) => amountCents >= t.fromCents).reduce((m, t) => Math.max(m, t.count), 0);
+  return rule.freePerOrder + tier;
+}
+
+/** Prochain palier non atteint (pour encourager : « encore 5 € pour 2 compléments offerts »). */
+export function nextExtrasTier(rule: ExtrasRule | null | undefined, amountCents: number): { fromCents: number; count: number; missingCents: number } | null {
+  if (!rule) return null;
+  const now = extrasFromRule(rule, amountCents);
+  const next = [...rule.tiers].sort((a, b) => a.fromCents - b.fromCents).find((t) => t.fromCents > amountCents && rule.freePerOrder + t.count > now);
+  return next ? { ...next, missingCents: next.fromCents - amountCents } : null;
 }
 
 export interface PricedLine {
@@ -144,6 +166,11 @@ export interface PricedCart {
   /** « Petits plus » offerts (remise automatique). */
   extrasDiscountCents: number;
   freeExtras: number;
+  /** Compléments offerts auxquels la commande donne droit (produits + règle générale). */
+  extrasAllowance: number;
+  /** Compléments (lignes « petits plus ») dans le panier. */
+  extrasCount: number;
+  nextExtrasTier: { fromCents: number; count: number; missingCents: number } | null;
   discountCents: number;
   deliveryFeeCents: number;
   totalCents: number;
@@ -308,6 +335,11 @@ export function priceCart(input: CartLineInput[], catalog: Map<string, CatalogPr
     allowance += p.isExtra ? 0 : (p.includedExtras ?? 0) * item.quantity;
   }
 
+  // Règle générale : N offerts par commande, plus le palier atteint (montant des plats, hors compléments).
+  const mainCents = lines.filter((l) => !l.isExtra).reduce((s, l) => s + l.totalCents, 0);
+  allowance += extrasFromRule(ctx.extrasRule, mainCents);
+  const extrasAllowance = allowance;
+
   // « Petits plus » offerts : chaque produit en inclut un nombre ; les plus chers sont offerts d'abord.
   let freeExtras = 0;
   for (const l of [...lines].filter((x) => x.isExtra && x.unitPriceCents > 0).sort((a, b) => b.unitPriceCents - a.unitPriceCents)) {
@@ -392,6 +424,9 @@ export function priceCart(input: CartLineInput[], catalog: Map<string, CatalogPr
     subtotalCents: grossSubtotal,
     extrasDiscountCents: extrasDiscount,
     freeExtras,
+    extrasAllowance,
+    extrasCount: lines.filter((l) => l.isExtra).reduce((s, l) => s + l.quantity, 0),
+    nextExtrasTier: nextExtrasTier(ctx.extrasRule, mainCents),
     discountCents: discount,
     deliveryFeeCents: fee,
     totalCents: total,

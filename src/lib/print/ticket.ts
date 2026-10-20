@@ -58,6 +58,8 @@ export function buildTicket(o: FullOrder, copyLabel?: string): Ticket {
     const opts = (l.options as unknown as OrderLineOption[]).map((x) => `+ ${x.name}`);
     L.push({ kind: "item", qty: l.quantity, name: l.name, price: euros(l.totalCents), details: [...(l.variantLabel ? [l.variantLabel] : []), ...opts] });
   }
+  // Le client a répondu « aucun complément » : la cuisine n'ajoute ni sauce ni baguettes.
+  if (o.extrasDeclined) L.push({ kind: "text", text: "SANS COMPLÉMENTS (ni sauce, ni baguettes)", bold: true });
   if (o.notes) {
     L.push({ kind: "rule" });
     L.push({ kind: "text", text: `NOTE : ${o.notes}`, bold: true });
@@ -84,6 +86,23 @@ export function buildTicket(o: FullOrder, copyLabel?: string): Ticket {
 
 /** Largeur en caractères selon le papier (police A). */
 export const COLUMNS = { MM58: 32, MM80: 48, A4: 80 } as const;
+
+/** Ticket d'essai (installation de l'imprimante depuis le back-office). */
+export function testTicket(restaurant: string, printer: string, address: string, at = new Date()): Ticket {
+  return {
+    lines: [
+      { kind: "center", text: restaurant.toUpperCase() },
+      { kind: "title", text: "TEST OK" },
+      { kind: "center", text: "L'imprimante est bien reliée au site." },
+      { kind: "rule" },
+      { kind: "pair", left: "Imprimante", right: printer },
+      ...(address ? [{ kind: "pair" as const, left: "Adresse", right: address }] : []),
+      { kind: "pair", left: "Date", right: at.toLocaleString("fr-FR", { timeZone: "Europe/Paris" }) },
+      { kind: "text", text: "Accents : é è à ç ù € — OK" },
+      { kind: "feed" },
+    ],
+  };
+}
 
 function wrap(text: string, width: number): string[] {
   const out: string[] = [];

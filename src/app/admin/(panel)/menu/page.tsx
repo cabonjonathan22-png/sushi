@@ -4,6 +4,10 @@ import { adminRestaurant } from "@/lib/admin";
 import { db } from "@/lib/db";
 import { imageSources, type ImageFiles } from "@/lib/images";
 import { can } from "@/lib/permissions";
+import { ActionForm, SubmitButton } from "@/components/admin/forms";
+import { getConfig } from "@/lib/config";
+import { euros } from "@/lib/money";
+import { saveExtrasSettingsAction } from "./actions";
 
 export const metadata = { title: "Menu & ruptures" };
 
@@ -64,6 +68,34 @@ export default async function MenuPage() {
       </p>
       <MenuManager restaurantId={current.id} initial={data} canEdit={canEdit} canRestaurant={can(staff.actor, "menu.restaurant", current.id)} />
       {archived > 0 && <Link href="/admin/menu/archives" className="text-sm underline">{archived} produit(s) archivé(s)</Link>}
+      {canEdit && <ExtrasSettings />}
     </div>
+  );
+}
+
+/** Compléments (catégorie de type « petits plus ») : choix obligatoire et compléments offerts. */
+async function ExtrasSettings() {
+  const { extras } = await getConfig();
+  return (
+    <details className="card p-5" open={extras.freePerOrder === 0 && extras.tiers.length === 0}>
+      <summary className="cursor-pointer font-display text-3xl">Compléments à la commande</summary>
+      <p className="mt-2 text-sm text-neutral-700">
+        Les compléments sont les produits des catégories de type « petits plus » (sauce soja, baguettes, serviettes, wasabi…).
+        À la fin de la commande en ligne, le client les choisit — ou répond « aucun complément », ce qui est imprimé sur le ticket.
+        Offerts : les moins chers restent payants, les plus chers sont offerts en premier. Chaque produit peut aussi en inclure (fiche produit, « petits plus offerts »).
+      </p>
+      <ActionForm action={saveExtrasSettingsAction} className="mt-4 grid gap-4 sm:grid-cols-2">
+        <label className="flex items-center gap-2 sm:col-span-2"><input type="checkbox" name="askAtCheckout" defaultChecked={extras.askAtCheckout} className="h-5 w-5" />Obliger le client à choisir ses compléments (ou « aucun complément ») avant de commander</label>
+        <div><label className="label" htmlFor="fpo">Compléments offerts sur toute commande</label><input id="fpo" name="freePerOrder" type="number" min={0} max={20} defaultValue={extras.freePerOrder} className="input" /></div>
+        <div>
+          <label className="label" htmlFor="tiers">Offerts selon le montant (un palier par ligne : « montant = nombre »)</label>
+          <textarea id="tiers" name="tiers" className="input min-h-28 font-mono" placeholder={"25 = 2\n40 = 4"}
+            defaultValue={extras.tiers.map((t) => `${(t.fromCents / 100).toString().replace(".", ",")} = ${t.count}`).join("\n")} />
+          <p className="mt-1 text-xs text-neutral-600">Ex. « 40 = 4 » : dès 40 € de plats, 4 compléments offerts (s'ajoutent à ceux offerts sur toute commande).</p>
+        </div>
+        {extras.tiers.length > 0 && <p className="text-sm text-neutral-700 sm:col-span-2">Actuellement : {[extras.freePerOrder ? `${extras.freePerOrder} offert(s) sur toute commande` : "", ...extras.tiers.map((t) => `dès ${euros(t.fromCents)} : +${t.count}`)].filter(Boolean).join(" · ")}</p>}
+        <div className="sm:col-span-2"><SubmitButton>Enregistrer</SubmitButton></div>
+      </ActionForm>
+    </details>
   );
 }

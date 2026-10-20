@@ -79,6 +79,11 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
         {loyalty && (
           <section className="card p-5">
             <div className="flex items-end justify-between gap-3"><h2 className="text-3xl">Fidélité</h2><p className="font-display text-4xl">{balance} pts</p></div>
+            <p className="mt-2 flex flex-wrap gap-3 text-sm">
+              {client.customer!.cardNumber && <span>Carte n° <strong className="font-mono">{client.customer!.cardNumber.replace(/(\d{4})(?=\d)/g, "$1 ")}</strong></span>}
+              <a href={`/admin/fidelite/imprimer/${client.customer!.id}?auto=1`} target="_blank" className="underline">Imprimer la carte</a>
+              <a href={`/admin/fidelite/imprimer/${client.customer!.id}?format=ticket&auto=1`} target="_blank" className="underline">sur ticket 80 mm</a>
+            </p>
             {canAdjust && (
               <ActionForm action={adjustPointsAction} className="mt-3 grid gap-2 sm:grid-cols-[110px_1fr_auto] sm:items-end">
                 <input type="hidden" name="customerId" value={client.customer!.id} />

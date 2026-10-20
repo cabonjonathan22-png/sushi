@@ -7,7 +7,7 @@ import { getSiteSettings } from "@/lib/restaurants";
 import { logoutAction } from "../(auth)/actions";
 import { switchRestaurantAction } from "./actions";
 
-export const metadata: Metadata = { title: { default: "Back-office", template: "%s · Back-office" }, robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: { default: "Back-office", template: "%s · Back-office" }, robots: { index: false, follow: false }, manifest: "/admin/app.webmanifest" };
 export const dynamic = "force-dynamic";
 
 const NAV: { href: string; label: string; perm?: Permission; icon: string }[] = [
@@ -18,6 +18,7 @@ const NAV: { href: string; label: string; perm?: Permission; icon: string }[] = 
   { href: "/admin/cuisine", label: "Écran cuisine", perm: "orders.view", icon: "👨‍🍳" },
   { href: "/admin/menu", label: "Menu & ruptures", perm: "stock.toggle", icon: "📋" },
   { href: "/admin/promos", label: "Codes promo", perm: "promos.edit", icon: "🏷️" },
+  { href: "/admin/fidelite/scanner", label: "Carte fidélité (scanner)", perm: "orders.payment", icon: "📷" },
   { href: "/admin/fidelite", label: "Fidélité", perm: "promos.edit", icon: "⭐" },
   { href: "/admin/restaurant", label: "Mon restaurant", perm: "restaurant.settings", icon: "⚙️" },
   { href: "/admin/compta", label: "Comptabilité", perm: "accounting.view", icon: "📊" },

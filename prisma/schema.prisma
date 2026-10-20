@@ -85,6 +85,7 @@ enum PrinterMethod {
   PRINTNODE // service PrintNode (ESC/POS USB / réseau)
   BIZPRINT // BizPrint / BizSwoop (print.bizswoop.app) : station installée au restaurant
   LOCAL_AGENT // petit agent local qui interroge le serveur
+  DIRECT_TCP // le serveur envoie le ticket directement à l'imprimante (port ouvert sur la box)
 }
 
 enum PaperWidth {
@@ -184,7 +185,9 @@ model Restaurant {
 
   alertEmails       String[]
   /// Interdire les produits « alcool » en livraison.
-  noAlcoholDelivery Boolean  @default(false)
+  noAlcoholDelivery Boolean   @default(false)
+  /// Archivé : fermé définitivement mais gardé pour la comptabilité (masqué du back-office et du site).
+  archivedAt        DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -284,6 +287,13 @@ model Printer {
   /// N° de l'imprimante chez le service externe (PrintNode ou BizPrint).
   remotePrinterId String        @default("")
   lastSeenAt      DateTime?
+  /// Poste d'impression : adresse réseau de l'imprimante (« 192.168.1.87:9100 »), choisie depuis le back-office.
+  address         String        @default("")
+  /// Poste d'impression : ordinateur, version, imprimantes trouvées sur le réseau, dernier test.
+  agentInfo       Json          @default("{}")
+  /// Demandes transmises au poste à sa prochaine connexion (quelques secondes).
+  testRequestedAt DateTime?
+  scanRequestedAt DateTime?
   jobs            PrintJob[]
 }
 
@@ -502,9 +512,26 @@ model User {
   failedLogins  Int              @default(0)
   lockedUntil   DateTime?
   lastLoginAt   DateTime?
+  /// Compte d'appareil (tablette du restaurant) créé par un code d'installation : pas de connexion par mot de passe.
+  device        Boolean          @default(false)
   createdAt     DateTime         @default(now())
   restaurants   UserRestaurant[]
   sessions      Session[]
+}
+
+/// Code d'installation à 6 chiffres (tablette ou poste d'impression) : 30 minutes, usage unique.
+model PairingCode {
+  id           String    @id @default(cuid())
+  /// sha256 du code
+  codeHash     String    @unique
+  /// "TABLET" ou "PRINTER"
+  purpose      String
+  restaurantId String
+  printerId    String?
+  createdById  String?
+  expiresAt    DateTime
+  usedAt       DateTime?
+  createdAt    DateTime  @default(now())
 }
 
 model UserRestaurant {
@@ -529,6 +556,8 @@ model Customer {
   createdAt    DateTime             @default(now())
   anonymizedAt DateTime?
   locale       String               @default("")
+  /// N° de carte de fidélité (12 chiffres, sous le QR code), créé à la première demande.
+  cardNumber   String?              @unique
   addresses    CustomerAddress[]
   orders       Order[]
   sessions     Session[]
@@ -614,10 +643,12 @@ model Order {
 
   // Montants figés (centimes TTC)
   subtotalCents       Int
-  discountCents       Int  @default(0)
+  discountCents       Int     @default(0)
   /// « Petits plus » offerts (remise automatique).
-  extrasDiscountCents Int  @default(0)
-  deliveryFeeCents    Int  @default(0)
+  extrasDiscountCents Int     @default(0)
+  /// Le client a répondu « aucun complément » (ni sauce, ni baguettes…) : imprimé sur le ticket.
+  extrasDeclined      Boolean @default(false)
+  deliveryFeeCents    Int     @default(0)
   totalCents          Int
   /// Ventilation TVA : [{ rate, baseCents, vatCents, totalCents }]
   vatBreakdown        Json

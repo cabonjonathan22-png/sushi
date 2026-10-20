@@ -17,7 +17,8 @@ export const ADMIN_RESTAURANT_COOKIE = "ys_admin_r";
 export const adminContext = cache(async (permission?: Permission) => {
   const staff = await requireStaff();
   const restaurants = await db.restaurant.findMany({
-    where: restaurantScope(staff.actor),
+    // Restaurants archivés (fermés définitivement) : masqués, ventes gardées dans les exports comptables.
+    where: { ...restaurantScope(staff.actor), archivedAt: null },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     select: { id: true, name: true, slug: true, ordersPausedUntil: true, ordersPausedReason: true, active: true, timezone: true },
   });

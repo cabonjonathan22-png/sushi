@@ -48,6 +48,11 @@ export async function startStaffSession(userId: string, role: Role, pending2fa: 
   await createSession("staff", { userId }, staffTtl(role), pending2fa);
 }
 
+/** Tablette du restaurant (appairée par code) : reste connectée un an. */
+export async function startDeviceSession(userId: string) {
+  await createSession("staff", { userId }, 24 * 365);
+}
+
 export async function startCustomerSession(customerId: string) {
   await createSession("customer", { customerId }, CUSTOMER_TTL_H);
 }

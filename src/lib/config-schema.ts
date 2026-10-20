@@ -102,6 +102,15 @@ export const ConfigSchema = z.object({
     /** E-mail de contact transmis à MyMemory : quota gratuit porté de 5 000 à 50 000 caractères par jour. */
     email: z.union([z.literal(""), z.string().email()]).default(""),
   }).prefault({}),
+  /** Compléments (« petits plus » : sauce soja, baguettes, wasabi…) à la validation de la commande. */
+  extras: z.object({
+    /** Le client doit choisir ses compléments ou répondre « aucun complément » avant de commander. */
+    askAtCheckout: z.boolean().default(true),
+    /** Compléments offerts sur toute commande. */
+    freePerOrder: z.number().int().min(0).max(20).default(0),
+    /** Compléments offerts à partir d'un montant (hors compléments) : le palier le plus élevé atteint s'ajoute. */
+    tiers: z.array(z.object({ fromCents: z.number().int().min(0).max(1_000_000), count: z.number().int().min(1).max(20) })).max(6).default([]),
+  }).prefault({}),
   customers: z.object({
     /** Comptes clients (historique, adresses) proposés sur le site. */
     accountsEnabled: z.boolean().default(true),

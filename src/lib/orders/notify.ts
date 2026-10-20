@@ -28,6 +28,7 @@ export async function onOrderConfirmed(tx: Tx, order: { id: string; restaurantId
     const job = await tx.printJob.create({ data: { orderId: order.id, printerId: p.id, copies: p.copies } });
     if (p.method === "PRINTNODE") await enqueue("printnode", { printJobId: job.id }, tx);
     if (p.method === "BIZPRINT") await enqueue("bizprint", { printJobId: job.id }, tx);
+    if (p.method === "DIRECT_TCP") await enqueue("printdirect", { printJobId: job.id }, tx);
   }
 }
 
@@ -56,6 +57,7 @@ export async function queueReprint(orderId: string, printerId?: string) {
     const job = await db.printJob.create({ data: { orderId, printerId: p.id, copies: p.copies } });
     if (p.method === "PRINTNODE") await enqueue("printnode", { printJobId: job.id });
     if (p.method === "BIZPRINT") await enqueue("bizprint", { printJobId: job.id });
+    if (p.method === "DIRECT_TCP") await enqueue("printdirect", { printJobId: job.id });
   }
   return printers.length;
 }

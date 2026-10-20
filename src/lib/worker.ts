@@ -9,6 +9,7 @@ import { expireInactivePoints } from "./loyalty";
 import { loadOrder } from "./orders/load";
 import { cancelAbandonedPayments } from "./orders/manage";
 import { refreshBizPrintJobs, submitBizPrint } from "./print/bizprint";
+import { submitDirect } from "./print/direct";
 import { submitPrintNode } from "./print/printnode";
 import { purgeRateLimits } from "./rate-limit";
 import { anonymizeInactiveCustomers } from "./retention";
@@ -40,6 +41,7 @@ const handlers: Record<JobType, JobHandler> = {
   webhook: (p) => deliverWebhook(p as Parameters<typeof deliverWebhook>[0]),
   printnode: (p) => submitPrintNode(p as { printJobId: string }),
   bizprint: (p) => submitBizPrint(p as { printJobId: string }),
+  printdirect: (p) => submitDirect(p as { printJobId: string }),
 };
 
 const g = globalThis as unknown as { __ysWorker?: boolean };

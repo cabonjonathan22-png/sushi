@@ -10,6 +10,9 @@ import { encryptSecret, randomToken } from "@/lib/crypto";
 import { db } from "@/lib/db";
 import { parseEuros } from "@/lib/money";
 import { slugify } from "@/lib/text-utils";
+import { createPairingCode, formatCode } from "@/lib/pairing";
+import { testDirect } from "@/lib/print/direct";
+import { parseAddress } from "@/lib/print/jobs";
 
 type Result = { ok?: string; error?: string } | undefined;
 const done = (msg = "Enregistré.") => {
@@ -234,7 +237,7 @@ export async function savePrinterAction(_: Result, form: FormData): Promise<Resu
   const printerId = String(form.get("printerId") ?? "");
   const method = String(form.get("method"));
   const paper = String(form.get("paperWidth"));
-  if (!["BROWSER", "STAR_CLOUDPRNT", "EPSON_SDP", "PRINTNODE", "LOCAL_AGENT", "BIZPRINT"].includes(method) || !["MM58", "MM80", "A4"].includes(paper)) return { error: "Réglage invalide." };
+  if (!["BROWSER", "STAR_CLOUDPRNT", "EPSON_SDP", "PRINTNODE", "LOCAL_AGENT", "BIZPRINT", "DIRECT_TCP"].includes(method) || !["MM58", "MM80", "A4"].includes(paper)) return { error: "Réglage invalide." };
   const data = {
     name: String(form.get("name") ?? "").trim().slice(0, 60) || "Imprimante",
     method: method as "BROWSER",
@@ -243,7 +246,10 @@ export async function savePrinterAction(_: Result, form: FormData): Promise<Resu
     autoPrint: form.get("autoPrint") === "on",
     active: form.get("active") === "on",
     remotePrinterId: String(form.get("remotePrinterId") ?? "").replace(/\D/g, ""),
+    address: String(form.get("address") ?? "").trim().replace(/\s/g, ""),
   };
+  if (data.address && !parseAddress(data.address)) return { error: "Adresse de l'imprimante invalide (ex. 192.168.1.87 ou mabox.fr:9100)." };
+  if (method === "DIRECT_TCP" && !data.address) return { error: "Indiquez l'adresse publique de la box (ex. 82.64.12.34:9100)." };
   const p = printerId
     ? await db.printer.update({ where: { id: printerId, restaurantId }, data })
     : await db.printer.create({ data: { ...data, restaurantId, deviceToken: randomToken(24) } });
@@ -264,6 +270,71 @@ export async function rotatePrinterTokenAction(form: FormData) {
   const staff = await authorize("restaurant.settings", p.restaurantId);
   await db.printer.update({ where: { id: p.id }, data: { deviceToken: randomToken(24) } });
   await logAction(staff, "printer.token_rotated", "Printer", p.id, p.restaurantId);
+  done();
+}
+
+/** Code d'installation du poste d'impression (à saisir sur l'ordinateur du restaurant). */
+export async function printerCodeAction(_: Result, form: FormData): Promise<Result> {
+  const p = await db.printer.findUniqueOrThrow({ where: { id: String(form.get("id")) } });
+  const staff = await authorize("restaurant.settings", p.restaurantId);
+  const code = await createPairingCode("PRINTER", p.restaurantId, staff.user.id, p.id);
+  await logAction(staff, "printer.install_code", "Printer", p.id, p.restaurantId);
+  return { ok: `Code : ${formatCode(code)} — valable 30 minutes.` };
+}
+
+/** Ticket d'essai : immédiat en impression directe, au prochain passage (3 s) du poste d'impression. */
+export async function printerTestAction(_: Result, form: FormData): Promise<Result> {
+  const p = await db.printer.findUniqueOrThrow({ where: { id: String(form.get("id")) } });
+  await authorize("restaurant.settings", p.restaurantId);
+  if (p.method === "DIRECT_TCP") {
+    try {
+      await testDirect(p.id);
+      return done("Ticket d'essai envoyé : il doit sortir de l'imprimante.");
+    } catch (e) {
+      return { error: (e as Error).message };
+    }
+  }
+  if (!p.address) return { error: "Choisissez d'abord l'imprimante (liste ci-dessus ou adresse)." };
+  await db.printer.update({ where: { id: p.id }, data: { testRequestedAt: new Date() } });
+  return done("Ticket d'essai demandé : il sort dans quelques secondes si le poste est en ligne. Le résultat s'affiche ci-dessus.");
+}
+
+/** Nouvelle recherche des imprimantes du réseau par le poste d'impression. */
+export async function printerScanAction(form: FormData) {
+  const p = await db.printer.findUniqueOrThrow({ where: { id: String(form.get("id")) } });
+  await authorize("restaurant.settings", p.restaurantId);
+  await db.printer.update({ where: { id: p.id }, data: { scanRequestedAt: new Date() } });
+  done();
+}
+
+/** Choix de l'imprimante trouvée par le poste. */
+export async function printerUseAddressAction(form: FormData) {
+  const p = await db.printer.findUniqueOrThrow({ where: { id: String(form.get("id")) } });
+  const staff = await authorize("restaurant.settings", p.restaurantId);
+  const address = String(form.get("address") ?? "");
+  if (!parseAddress(address)) return;
+  await db.printer.update({ where: { id: p.id }, data: { address } });
+  await logAction(staff, "printer.address", "Printer", p.id, p.restaurantId, { address });
+  done();
+}
+
+// ───────────── Tablette ─────────────
+
+/** Code d'installation de la tablette (connexion sans mot de passe, sur ce restaurant). */
+export async function tabletCodeAction(_: Result, form: FormData): Promise<Result> {
+  const restaurantId = String(form.get("restaurantId"));
+  const staff = await authorize("users.manage", restaurantId);
+  const code = await createPairingCode("TABLET", restaurantId, staff.user.id);
+  await logAction(staff, "device.pairing_code", "Restaurant", restaurantId, restaurantId);
+  return { ok: `Code : ${formatCode(code)} — valable 30 minutes.` };
+}
+
+/** Tablette perdue ou remplacée : déconnectée immédiatement. */
+export async function revokeTabletAction(form: FormData) {
+  const user = await db.user.findFirstOrThrow({ where: { id: String(form.get("id")), device: true }, include: { restaurants: true } });
+  const staff = await authorize("users.manage", user.restaurants[0]?.restaurantId);
+  await db.$transaction([db.session.deleteMany({ where: { userId: user.id } }), db.user.update({ where: { id: user.id }, data: { active: false } })]);
+  await logAction(staff, "device.revoked", "User", user.id, user.restaurants[0]?.restaurantId ?? null);
   done();
 }
 
@@ -307,4 +378,66 @@ export async function createRestaurantAction(_: Result, form: FormData): Promise
   // Le nouveau restaurant devient le restaurant sélectionné dans le back-office.
   (await cookies()).set(ADMIN_RESTAURANT_COOKIE, r.id, { httpOnly: true, sameSite: "lax", path: "/admin", secure: process.env.NODE_ENV === "production", maxAge: 31536000 });
   redirect("/admin/restaurant?nouveau=1");
+}
+
+// ───────────── Suppression / archivage ─────────────
+
+/**
+ * Suppression définitive : seulement si le restaurant n'a jamais enregistré de commande
+ * (ni clôture de caisse). Sinon, la loi impose de garder ses ventes : on l'archive.
+ * Le nom doit être retapé pour confirmer ; le dernier restaurant ne peut pas être supprimé.
+ */
+export async function deleteRestaurantAction(_: Result, form: FormData): Promise<Result> {
+  const id = String(form.get("restaurantId"));
+  const staff = await authorize("restaurant.create");
+  const r = await db.restaurant.findUnique({ where: { id }, include: { _count: { select: { orders: true, closuresDaily: true } } } });
+  if (!r) return { error: "Restaurant introuvable." };
+  if (String(form.get("confirmName") ?? "").trim().toLowerCase() !== r.name.trim().toLowerCase()) return { error: `Pour confirmer, tapez exactement le nom « ${r.name} ».` };
+  if ((await db.restaurant.count({ where: { archivedAt: null, id: { not: id } } })) === 0) return { error: "C'est le seul restaurant : il ne peut pas être supprimé." };
+  if (r._count.orders || r._count.closuresDaily) {
+    return { error: `Ce restaurant a ${r._count.orders} commande(s) enregistrée(s) : la loi impose de conserver ses ventes (6 ans). Utilisez « Archiver » : il disparaît du site et du back-office, ses ventes restent dans les exports comptables.` };
+  }
+  await db.$transaction(async (tx) => {
+    // Le reste (horaires, zones, imprimantes, prix propres, accès des utilisateurs…) est supprimé en cascade.
+    const tablets = await tx.user.findMany({ where: { device: true, restaurants: { some: { restaurantId: id } } }, select: { id: true } });
+    await tx.user.deleteMany({ where: { id: { in: tablets.map((t) => t.id) } } });
+    await tx.pairingCode.deleteMany({ where: { restaurantId: id } });
+    await tx.translation.deleteMany({ where: { entityType: "restaurant", entityId: id } });
+    await tx.counter.deleteMany({ where: { key: { contains: id } } });
+    await tx.$executeRaw`UPDATE "PromoCode" SET "restaurantIds" = array_remove("restaurantIds", ${id}) WHERE ${id} = ANY("restaurantIds")`;
+    await tx.restaurant.delete({ where: { id } });
+  });
+  await logAction(staff, "restaurant.delete", "Restaurant", id, null, { name: r.name, slug: r.slug });
+  (await cookies()).delete({ name: ADMIN_RESTAURANT_COOKIE, path: "/admin" });
+  revalidatePath("/", "layout");
+  redirect("/admin?supprime=1");
+}
+
+/** Archivage : restaurant fermé définitivement, masqué partout, ventes conservées. */
+export async function archiveRestaurantAction(_: Result, form: FormData): Promise<Result> {
+  const id = String(form.get("restaurantId"));
+  const staff = await authorize("restaurant.create");
+  const r = await db.restaurant.findUnique({ where: { id } });
+  if (!r) return { error: "Restaurant introuvable." };
+  if (String(form.get("confirmName") ?? "").trim().toLowerCase() !== r.name.trim().toLowerCase()) return { error: `Pour confirmer, tapez exactement le nom « ${r.name} ».` };
+  if ((await db.restaurant.count({ where: { archivedAt: null, id: { not: id } } })) === 0) return { error: "C'est le seul restaurant : il ne peut pas être archivé." };
+  await db.$transaction([
+    db.restaurant.update({ where: { id }, data: { archivedAt: new Date(), active: false } }),
+    db.printer.updateMany({ where: { restaurantId: id }, data: { active: false } }),
+    db.session.deleteMany({ where: { user: { device: true, restaurants: { some: { restaurantId: id } } } } }),
+  ]);
+  await logAction(staff, "restaurant.archive", "Restaurant", id, id, { name: r.name });
+  (await cookies()).delete({ name: ADMIN_RESTAURANT_COOKIE, path: "/admin" });
+  revalidatePath("/", "layout");
+  redirect("/admin?archive=1");
+}
+
+/** Restaurant archivé remis dans le back-office (inactif : à réactiver dans « Services »). */
+export async function restoreRestaurantAction(form: FormData) {
+  const id = String(form.get("restaurantId"));
+  const staff = await authorize("restaurant.create");
+  await db.restaurant.update({ where: { id }, data: { archivedAt: null } });
+  await logAction(staff, "restaurant.restore", "Restaurant", id, id);
+  (await cookies()).set(ADMIN_RESTAURANT_COOKIE, id, { httpOnly: true, sameSite: "lax", path: "/admin", secure: process.env.NODE_ENV === "production", maxAge: 31536000 });
+  redirect("/admin/restaurant");
 }

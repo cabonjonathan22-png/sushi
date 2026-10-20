@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { authorize, logAction } from "@/lib/admin";
 import { ALLERGENS, NO_ALLERGEN } from "@/lib/catalog-constants";
-import { getConfig } from "@/lib/config";
+import { getConfig, readConfig } from "@/lib/config";
+import { ConfigSchema } from "@/lib/config-schema";
 import { canAccessRestaurant } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { storeProductImage } from "@/lib/images";
@@ -343,4 +344,32 @@ export async function archiveProductAction(form: FormData) {
   await logAction(staff, archived ? "product.archive" : "product.unarchive", "Product", id, null);
   refresh();
   redirect("/admin/menu");
+}
+
+// ───────────── Compléments à la commande (sauce soja, baguettes…) ─────────────
+
+/**
+ * Choix obligatoire des compléments à la fin de la commande, compléments offerts sur toute
+ * commande et par palier de montant. Lignes « 40 = 2 » : à partir de 40 €, 2 offerts.
+ */
+export async function saveExtrasSettingsAction(_: Result, form: FormData): Promise<Result> {
+  const staff = await authorize("menu.edit");
+  const tiers: { fromCents: number; count: number }[] = [];
+  for (const line of String(form.get("tiers") ?? "").split(/\n/).map((l) => l.trim()).filter(Boolean)) {
+    const m = line.match(/^(\d+(?:[.,]\d{1,2})?)\s*(?:€)?\s*[=:→>-]+\s*(\d{1,2})$/);
+    const fromCents = m ? parseEuros(m[1]!) : null;
+    if (!m || fromCents === null) return { error: `Palier illisible : « ${line} ». Écrivez par exemple « 40 = 2 » (dès 40 €, 2 compléments offerts).` };
+    tiers.push({ fromCents, count: Number(m[2]) });
+  }
+  const current = await readConfig();
+  const parsed = ConfigSchema.safeParse({
+    ...current,
+    extras: { askAtCheckout: form.get("askAtCheckout") === "on", freePerOrder: Number(form.get("freePerOrder") || 0), tiers: tiers.sort((a, b) => a.fromCents - b.fromCents) },
+  });
+  if (!parsed.success) return { error: `Réglage invalide : ${parsed.error.issues[0]?.message}` };
+  await db.siteSettings.upsert({ where: { id: 1 }, create: { id: 1, config: parsed.data }, update: { config: parsed.data } });
+  await logAction(staff, "extras.settings", "SiteSettings", "1", null, parsed.data.extras);
+  revalidatePath("/", "layout");
+  refresh();
+  return { ok: "Réglages des compléments enregistrés." };
 }

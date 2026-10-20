@@ -6,7 +6,7 @@ import { db, type Tx } from "./db";
  * et elle est relancée avec un délai croissant en cas d'échec.
  */
 
-export type JobType = "email" | "webhook" | "printnode" | "bizprint";
+export type JobType = "email" | "webhook" | "printnode" | "bizprint" | "printdirect";
 
 export async function enqueue(type: JobType, payload: object, tx?: Tx, runAt?: Date): Promise<void> {
   await (tx ?? db).outboxJob.create({ data: { type, payload, runAt: runAt ?? new Date() } });

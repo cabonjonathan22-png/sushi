@@ -5,6 +5,7 @@ import { activeRewards, balanceOf, loyaltySettings } from "@/lib/loyalty";
 import { nextReward } from "@/lib/loyalty-rules";
 import { money } from "@/lib/money";
 import { formatDateTime } from "@/lib/time";
+import { cardQrSvg, ensureCardNumber, formatCardNumber } from "@/lib/loyalty-card";
 
 /** Carte de fidélité du client connecté (page « Mon compte »). */
 export async function LoyaltyCard({ customerId, t }: { customerId: string; t: T }) {
@@ -15,6 +16,8 @@ export async function LoyaltyCard({ customerId, t }: { customerId: string; t: T 
     activeRewards(),
     db.loyaltyTransaction.findMany({ where: { customerId }, orderBy: { createdAt: "desc" }, take: 15, include: { order: { select: { reference: true } } } }),
   ]);
+  const number = await ensureCardNumber(customerId);
+  const qr = await cardQrSvg(number);
   const next = nextReward(rewards, balance);
   const usable = rewards.some((r) => r.pointsCost <= balance);
   const progress = next ? Math.min(100, Math.round((balance / next.pointsCost) * 100)) : 100;
@@ -51,6 +54,15 @@ export async function LoyaltyCard({ customerId, t }: { customerId: string; t: T 
               ))}
             </ul>
           )}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-5 border-t border-white/10 px-6 py-5 sm:px-8">
+        <div className="w-28 shrink-0 rounded-xl bg-white p-1.5" dangerouslySetInnerHTML={{ __html: qr }} />
+        <div className="min-w-0 flex-1">
+          <h3 className="text-xl">{t("loyalty.cardTitle")}</h3>
+          <p className="font-mono text-sm text-paper/80">{t("loyalty.cardNumber", { number: formatCardNumber(number) })}</p>
+          <p className="mt-1 text-sm text-paper/70">{t("loyalty.cardHint")}</p>
+          <a href="/compte/carte" target="_blank" className="mt-3 inline-block rounded-full bg-paper px-4 py-2 text-sm font-semibold text-char">{t("loyalty.cardPrint")}</a>
         </div>
       </div>
       <details className="border-t border-white/10 px-6 py-4 sm:px-8">

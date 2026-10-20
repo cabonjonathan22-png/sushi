@@ -14,9 +14,10 @@ import { pauseUntilText } from "@/lib/pause";
 const FR_PAUSE: Record<string, string> = { "pause.untilFurther": "jusqu'à nouvel ordre", "pause.untilTime": "jusqu'à {time}", "pause.untilDay": "jusqu'au {date} inclus", "pause.untilDateTime": "jusqu'au {date} à {time}" };
 const frPause = (key: string, vars: Record<string, string> = {}) => FR_PAUSE[key]!.replace(/\{(\w+)\}/g, (_, k: string) => vars[k] ?? "");
 
-export default async function Dashboard({ searchParams }: { searchParams: Promise<{ ok?: string }> }) {
+export default async function Dashboard({ searchParams }: { searchParams: Promise<{ ok?: string; supprime?: string; archive?: string }> }) {
   const { staff, current, restaurants } = await adminContext();
-  const ok = (await searchParams).ok;
+  const sp = await searchParams;
+  const ok = sp.ok;
   if (!current) return <p className="card p-6">Aucun restaurant ne vous est attribué. Contactez le propriétaire.</p>;
 
   const today = localDate(new Date());
@@ -35,6 +36,8 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
 
   return (
     <div className="space-y-6">
+      {sp.supprime && <p className="rounded-xl bg-green-50 p-4 font-semibold text-green-800">Restaurant supprimé.</p>}
+      {sp.archive && <p className="rounded-xl bg-green-50 p-4 font-semibold text-green-800">Restaurant archivé : il n'apparaît plus sur le site ni dans le back-office. Ses ventes restent dans les exports comptables.</p>}
       {ok === "2fa" && <p className="rounded-xl bg-green-50 p-4 font-semibold text-green-800">Double authentification activée.</p>}
       <h1 className="text-5xl">Bonjour {staff.user.name.split(" ")[0]}</h1>
 

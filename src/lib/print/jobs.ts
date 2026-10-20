@@ -1,5 +1,8 @@
 import { db } from "../db";
 import { loadOrder, type FullOrder } from "../orders/load";
+import { renderEscPos } from "./escpos";
+import { buildTicket, COLUMNS } from "./ticket";
+import { localDate, localHHMM, localWeekday, minutesOf } from "../time";
 
 /**
  * File des tickets pour les imprimantes qui interrogent le serveur
@@ -14,7 +17,8 @@ export async function printerByToken(token: string) {
   if (!/^[A-Za-z0-9_-]{16,64}$/.test(token)) return null;
   const p = await db.printer.findUnique({ where: { deviceToken: token } });
   if (!p || !p.active) return null;
-  await db.printer.update({ where: { id: p.id }, data: { lastSeenAt: new Date() } });
+  // « Vu à » : écrit au plus une fois par minute (le poste interroge toutes les quelques secondes).
+  if (!p.lastSeenAt || p.lastSeenAt < new Date(Date.now() - 60_000)) await db.printer.update({ where: { id: p.id }, data: { lastSeenAt: new Date() } });
   return p;
 }
 
@@ -49,4 +53,38 @@ export async function completeJob(printerId: string, jobId: string, ok: boolean,
     where: { id: jobId, printerId },
     data: ok ? { status: "DONE", doneAt: new Date(), lastError: "" } : { status: "PENDING", lastError: error.slice(0, 300) },
   });
+}
+
+/** Ticket ESC/POS d'une commande : un exemplaire par destinataire (cuisine, livreur / comptoir, client). */
+export function orderEscPos(order: FullOrder, paperWidth: keyof typeof COLUMNS, copies: number): Buffer {
+  const labels = copies > 1 ? ["CUISINE", order.mode === "DELIVERY" ? "LIVREUR" : "COMPTOIR", "CLIENT"].slice(0, copies) : [undefined];
+  return Buffer.concat(labels.map((l) => renderEscPos(buildTicket(order, l), COLUMNS[paperWidth])));
+}
+
+/** « 192.168.1.87 » ou « 192.168.1.87:9100 » ou « box.example.fr:9101 » → hôte + port (9100 par défaut). */
+export function parseAddress(address: string): { host: string; port: number } | null {
+  const m = address.trim().match(/^([A-Za-z0-9.-]{1,253})(?::(\d{1,5}))?$/);
+  if (!m) return null;
+  const port = Number(m[2] ?? 9100);
+  return port > 0 && port < 65536 ? { host: m[1]!, port } : null;
+}
+
+/**
+ * Rythme d'interrogation du poste d'impression : quelques secondes pendant le service
+ * (une heure avant l'ouverture jusqu'à une heure après la fermeture), 15 minutes sinon,
+ * pour laisser la base de données se mettre en veille la nuit (offres gratuites).
+ */
+export async function agentPollSeconds(p: { restaurantId: string; address: string; agentInfo: unknown; testRequestedAt: Date | null; scanRequestedAt: Date | null }, now = new Date()): Promise<number> {
+  const recent = (d: Date | null) => !!d && d > new Date(now.getTime() - 15 * 60_000);
+  // Installation / réglage à distance en cours : le poste reste réactif 15 minutes.
+  const info = (p.agentInfo ?? {}) as { discovered?: unknown; scannedAt?: string; downloadedAt?: string; lastTest?: { at?: string } };
+  const at = (v?: string) => (v ? new Date(v) : null);
+  if (!p.address || !info.discovered || [p.testRequestedAt, p.scanRequestedAt, at(info.scannedAt), at(info.downloadedAt), at(info.lastTest?.at)].some(recent)) return 3;
+  const r = await db.restaurant.findUnique({ where: { id: p.restaurantId }, select: { timezone: true, openingHours: true } });
+  if (!r?.openingHours.length) return 5;
+  const day = localDate(now, r.timezone);
+  const wd = localWeekday(day);
+  const m = minutesOf(localHHMM(now, r.timezone));
+  const open = r.openingHours.some((h) => h.weekday === wd && m >= minutesOf(h.opens) - 60 && m <= minutesOf(h.closes) + 60);
+  return open ? 4 : 900;
 }

@@ -24,7 +24,13 @@ export interface CheckoutProps {
   options?: { requireEmail: boolean; allowNotes: boolean; accountsEnabled: boolean; notesPlaceholder?: string };
   /** Pays (ISO) : contrôle du code postal et autocomplétion d'adresse (France uniquement). */
   country?: string;
+  /** Compléments (sauce soja, baguettes…) proposés avant de commander. */
+  extras?: CheckoutExtra[];
+  /** Choix obligatoire : des compléments, ou « aucun complément ». */
+  askExtras?: boolean;
 }
+
+export type CheckoutExtra = { id: string; name: string; priceCents: number; image: string | null; modes: Record<Mode, boolean> };
 
 /** Code postal complet ? France : 5 chiffres ; ailleurs : au moins 3 caractères. */
 const postalComplete = (cp: string, country: string) => (country === "FR" ? /^\d{5}$/.test(cp) : cp.trim().length >= 3);
@@ -32,7 +38,7 @@ const postalComplete = (cp: string, country: string) => (country === "FR" ? /^\d
 const EMPTY_ADDRESS: Address = { street: "", extra: "", postalCode: "", city: "", notes: "" };
 const MEMO_KEY = "ys_checkout";
 
-export function Checkout({ restaurant, account, options = { requireEmail: true, allowNotes: true, accountsEnabled: true }, country = "FR" }: CheckoutProps) {
+export function Checkout({ restaurant, account, options = { requireEmail: true, allowNotes: true, accountsEnabled: true }, country = "FR", extras: allExtras = [], askExtras = false }: CheckoutProps) {
   const { t } = useI18n();
   const router = useRouter();
   const modeLabel = (m: Mode) => t(`mode.${m}`);
@@ -54,6 +60,7 @@ export function Checkout({ restaurant, account, options = { requireEmail: true, 
   const [saveAddress, setSaveAddress] = useState(true);
   const [preview, setPreview] = useState<(PricedCart & { loyalty?: LoyaltyPreview | null }) | null>(null);
   const [rewardId, setRewardId] = useState("");
+  const [extrasDeclined, setExtrasDeclined] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [payment, setPayment] = useState<{ clientSecret: string; publishableKey: string; token: string; amount: number } | null>(null);
@@ -127,9 +134,14 @@ export function Checkout({ restaurant, account, options = { requireEmail: true, 
     );
   }
 
+  const extras = allExtras.filter((x) => x.modes[mode]);
+  const extrasInCart = cart.items.filter((i) => extras.some((x) => x.id === i.productId)).reduce((s, i) => s + i.quantity, 0);
+  const extrasMissing = askExtras && extras.length > 0 && extrasInCart === 0 && !extrasDeclined;
+
   const submit = async () => {
     setErrors([]);
     const local: string[] = [];
+    if (extrasMissing) local.push(t("checkout.errExtras"));
     if (!slot) local.push(t("checkout.errSlot"));
     if (mode === "DELIVERY" && !zone) local.push(t("checkout.errZone"));
     if (!paymentMethod) local.push(t("checkout.errPayment"));
@@ -151,6 +163,7 @@ export function Checkout({ restaurant, account, options = { requireEmail: true, 
         restaurantSlug: restaurant.slug, mode, slotStart: slot!.start, lines, customer,
         address: mode === "DELIVERY" ? address : null, notes, paymentMethod,
         promoCode: promoCode || undefined, rewardId: (preview?.rewardApplied && rewardId) || undefined, ageConfirmed, acceptTerms, saveAddress,
+        extrasDeclined: extrasDeclined && extrasInCart === 0,
       }),
     }).catch(() => null);
     const data = res ? ((await res.json().catch(() => null)) as
@@ -348,6 +361,52 @@ export function Checkout({ restaurant, account, options = { requireEmail: true, 
           )}
           {!account && options.accountsEnabled && <p className="mt-2 text-sm text-neutral-600">{t("checkout.noAccount")} <Link href="/compte" className="underline">{t("checkout.login")}</Link> {t("checkout.loginHint")}</p>}
         </section>
+
+        {extras.length > 0 && (
+          <section className={`card p-5 ${extrasMissing && errors.length ? "ring-2 ring-red-600" : ""}`} aria-labelledby="s-extras">
+            <h2 id="s-extras" className="text-3xl">{t("checkout.extrasTitle")}</h2>
+            <p className="mt-1 text-neutral-700">{t("checkout.extrasIntro")}</p>
+            {preview && preview.extrasAllowance > 0 && (
+              <p className="mt-3 rounded-xl bg-green-50 p-3 text-sm font-semibold text-green-900" role="status">
+                {t("checkout.extrasAllowance", { n: preview.extrasAllowance })}
+                {preview.freeExtras > 0 && <> · {t("checkout.extrasUsed", { used: preview.freeExtras, n: preview.extrasAllowance })}</>}
+              </p>
+            )}
+            {preview?.nextExtrasTier && (
+              <p className="mt-2 text-sm text-neutral-700">{t("checkout.extrasNextTier", { missing: euros(preview.nextExtrasTier.missingCents), n: preview.nextExtrasTier.count })}</p>
+            )}
+            <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+              {extras.map((x) => {
+                const item = cart.items.find((i) => i.productId === x.id && !i.variantId && !i.optionIds.length);
+                const qty = item?.quantity ?? 0;
+                return (
+                  <li key={x.id} className={`flex items-center gap-3 rounded-xl border-2 p-2 ${qty ? "border-brand-600 bg-brand-50" : "border-neutral-200"}`}>
+                    {x.image ? <img src={x.image} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" loading="lazy" /> : <span aria-hidden className="h-12 w-12 shrink-0 rounded-lg bg-neutral-100" />}
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-semibold leading-tight">{x.name}</span>
+                      <span className="text-sm text-neutral-600">{x.priceCents ? euros(x.priceCents) : t("checkout.extrasFreeTag")}</span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1">
+                      {qty > 0 && (
+                        <button type="button" onClick={() => cart.setQuantity(item!.key, qty - 1)} aria-label={`${t("product.less")} ${x.name}`}
+                          className="h-10 w-10 rounded-full bg-white text-xl font-bold ring-1 ring-neutral-300">−</button>
+                      )}
+                      {qty > 0 && <span className="w-6 text-center font-bold" aria-live="polite">{qty}</span>}
+                      <button type="button" onClick={() => { cart.add(x.id, null, [], 1); setExtrasDeclined(false); }} aria-label={`${t("product.more")} ${x.name}`}
+                        className="h-10 w-10 rounded-full bg-ink text-xl font-bold text-white">+</button>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            {askExtras && extrasInCart === 0 && (
+              <label className={`mt-3 flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border-2 px-4 ${extrasDeclined ? "border-brand-600 bg-brand-50" : "border-neutral-200"}`}>
+                <input type="checkbox" className="h-5 w-5 accent-brand-600" checked={extrasDeclined} onChange={(e) => setExtrasDeclined(e.target.checked)} />
+                <span className="font-semibold">{t("checkout.extrasNone")}</span>
+              </label>
+            )}
+          </section>
+        )}
 
         <section className="card p-5" aria-labelledby="s-pay">
           <h2 id="s-pay" className="text-3xl">{t("checkout.step4")}</h2>
