@@ -166,7 +166,7 @@ export default async function ConfigurationPage() {
           </div>
           <div>
             <label className="label" htmlFor="tk">Clé API (DeepL, Google) {c.translation.apiKeyEnc && <span className="font-normal text-green-700">— enregistrée</span>}</label>
-            <input id="tk" name="translationApiKey" type="password" autoComplete="off" placeholder={c.translation.apiKeyEnc ? "•••••••• (laisser vide pour conserver)" : ""} className="input" />
+            <input id="tk" name="translationApiKey" type="password" autoComplete="new-password" placeholder={c.translation.apiKeyEnc ? "•••••••• (laisser vide pour conserver)" : ""} className="input" />
             {c.translation.apiKeyEnc && <label className="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" name="translationClearKey" className="h-4 w-4" />Supprimer la clé enregistrée</label>}
           </div>
           <div className="sm:col-span-2"><label className="label" htmlFor="te">Adresse du serveur (LibreTranslate uniquement)</label><input id="te" name="translationEndpoint" type="url" defaultValue={c.translation.endpoint} className="input" placeholder="https://translate.example.com" /></div>

@@ -258,8 +258,8 @@ export default async function RestaurantSettings({ searchParams }: { searchParam
                 {" "}<code>payment_intent.succeeded</code>, <code>payment_intent.payment_failed</code>, <code>payment_intent.canceled</code>.
               </p>
               <div><label className="label" htmlFor="pk">Clé publiable (pk_…)</label><input id="pk" name="publishableKey" placeholder={r.stripePublishableKey || "pk_live_…"} className="input font-mono" /></div>
-              <div><label className="label" htmlFor="sk">Clé secrète (sk_… ou clé restreinte rk_…)</label><input id="sk" name="secretKey" type="password" autoComplete="off" placeholder={r.stripeSecretKeyEnc ? "•••••••• (laisser vide pour conserver)" : "sk_live_…"} className="input font-mono" /></div>
-              <div><label className="label" htmlFor="wh">Secret de signature du webhook (whsec_…)</label><input id="wh" name="webhookSecret" type="password" autoComplete="off" placeholder={r.stripeWebhookSecretEnc ? "•••••••• (laisser vide pour conserver)" : "whsec_…"} className="input font-mono" /></div>
+              <div><label className="label" htmlFor="sk">Clé secrète (sk_… ou clé restreinte rk_…)</label><input id="sk" name="secretKey" type="password" autoComplete="new-password" placeholder={r.stripeSecretKeyEnc ? "•••••••• (laisser vide pour conserver)" : "sk_live_…"} className="input font-mono" /></div>
+              <div><label className="label" htmlFor="wh">Secret de signature du webhook (whsec_…)</label><input id="wh" name="webhookSecret" type="password" autoComplete="new-password" placeholder={r.stripeWebhookSecretEnc ? "•••••••• (laisser vide pour conserver)" : "whsec_…"} className="input font-mono" /></div>
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="clear" className="h-4 w-4" />Supprimer la configuration Stripe</label>
               <SubmitButton>Enregistrer</SubmitButton>
             </ActionForm>
@@ -302,8 +302,8 @@ export default async function RestaurantSettings({ searchParams }: { searchParam
               )}
               <ActionForm action={saveBizPrintAction} className="grid gap-3 sm:grid-cols-2">
                 <input type="hidden" name="restaurantId" value={r.id} />
-                <div><label className="label" htmlFor="bpk">Clé publique</label><input id="bpk" name="publicKey" placeholder={r.bizprintPublicKey || "Clé publique"} className="input font-mono" /></div>
-                <div><label className="label" htmlFor="bsk">Clé secrète</label><input id="bsk" name="secretKey" type="password" autoComplete="off" placeholder={r.bizprintSecretEnc ? "•••••••• (laisser vide pour conserver)" : "Clé secrète"} className="input font-mono" /></div>
+                <div><label className="label" htmlFor="bpk">Clé publique</label><input id="bpk" name="publicKey" autoComplete="off" placeholder={r.bizprintPublicKey || "Clé publique"} className="input font-mono" /></div>
+                <div><label className="label" htmlFor="bsk">Clé secrète</label><input id="bsk" name="secretKey" type="password" autoComplete="new-password" placeholder={r.bizprintSecretEnc ? "•••••••• (laisser vide pour conserver)" : "Clé secrète"} className="input font-mono" /></div>
                 <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="clear" className="h-4 w-4" />Déconnecter BizPrint</label>
                 <div className="sm:col-span-2"><SubmitButton>Enregistrer</SubmitButton></div>
               </ActionForm>
