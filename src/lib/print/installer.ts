@@ -4,7 +4,9 @@
  *
  * Avec l'accord de Windows (« Oui ») : tâche planifiée au démarrage, sous le compte système,
  * donc active même sans session ouverte (redémarrage après une mise à jour). Sinon : démarrage
- * à l'ouverture de la session. Mise en veille sur secteur désactivée dans les deux cas. L'agent interroge le site
+ * à l'ouverture de la session. Mise en veille sur secteur désactivée dans les deux cas.
+ * En mode système, installe aussi RustDesk (accès à distance de maintenance, service Windows)
+ * et envoie son n° et son mot de passe au back-office (chiffré, visible du propriétaire). L'agent interroge le site
  * toutes les 3 secondes, cherche lui-même les imprimantes du réseau (port 9100) et les signale
  * au back-office, où l'on choisit l'imprimante et lance un ticket d'essai — à distance.
  *
@@ -12,12 +14,13 @@
  * pour rester de simples chaînes JavaScript.
  */
 
-export const AGENT_VERSION = "1.1";
+export const AGENT_VERSION = "1.2";
 
 const INSTALL = String.raw`
 $ErrorActionPreference = 'Stop'
 $url = '__URL__'
 $exe = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch {}
 $nl = [Environment]::NewLine
 function Show-Box([string]$text, [string]$icon) {
   Add-Type -AssemblyName PresentationFramework
@@ -32,6 +35,35 @@ function Write-AgentFiles([string]$dir) {
   [IO.File]::WriteAllText((Join-Path $dir 'adresse.txt'), $url)
   return ('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + (Join-Path $dir 'agent.ps1') + '"')
 }
+# Accès à distance pour la maintenance (RustDesk, gratuit) : installé comme service Windows,
+# il redémarre tout seul avec l'ordinateur. Son n° et son mot de passe sont envoyés au back-office.
+function Install-RemoteAccess {
+  $rd = Join-Path $env:ProgramFiles 'RustDesk\rustdesk.exe'
+  if (-not (Test-Path $rd)) {
+    $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/rustdesk/rustdesk/releases/latest' -UseBasicParsing -Headers @{ 'User-Agent' = 'yaoma-installer' }
+    $asset = $release.assets | Where-Object { $_.name -match '^rustdesk-[0-9.]+-x86_64\.exe$' } | Select-Object -First 1
+    if (-not $asset) { throw 'RustDesk introuvable' }
+    $setup = Join-Path $env:TEMP $asset.name
+    Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $setup -UseBasicParsing
+    Start-Process -FilePath $setup -ArgumentList '--silent-install'
+    for ($i = 0; $i -lt 60 -and -not (Test-Path $rd); $i++) { Start-Sleep -Seconds 2 }
+    Start-Sleep -Seconds 10
+  }
+  if (-not (Get-Service -Name 'RustDesk' -ErrorAction SilentlyContinue)) {
+    Start-Process -FilePath $rd -ArgumentList '--install-service' -Wait
+    Start-Sleep -Seconds 10
+  }
+  Set-Service -Name 'RustDesk' -StartupType Automatic -ErrorAction SilentlyContinue
+  $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'.ToCharArray()
+  $password = -join (1..14 | ForEach-Object { $chars | Get-Random })
+  & $rd --password $password | Out-Null
+  $id = ''
+  for ($i = 0; $i -lt 10 -and -not $id; $i++) { $id = ((& $rd --get-id | Out-String).Trim()) -replace '\s', ''; if (-not $id) { Start-Sleep -Seconds 3 } }
+  if (-not $id) { throw 'n° RustDesk non disponible' }
+  $body = @{ report = @{ remote = @{ tool = 'RustDesk'; id = $id; password = $password; host = $env:COMPUTERNAME } } } | ConvertTo-Json -Depth 5 -Compress
+  Invoke-RestMethod -Uri $url -Method Post -Body ([Text.Encoding]::UTF8.GetBytes($body)) -ContentType 'application/json' -UseBasicParsing | Out-Null
+}
+
 $startupLink = Join-Path ([Environment]::GetFolderPath('Startup')) 'Impression Yaoma.lnk'
 $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 $isAdmin = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -58,6 +90,8 @@ try {
       Stop-OldAgents
       if (Test-Path $startupLink) { Remove-Item $startupLink -Force }
       Start-ScheduledTask -TaskName 'Impression Yaoma'
+      $remote = 'ok'
+      try { Install-RemoteAccess } catch { $remote = $_.Exception.Message }
       powercfg /change standby-timeout-ac 0 2>$null | Out-Null
       powercfg /change hibernate-timeout-ac 0 2>$null | Out-Null
       $mode = 'system'
@@ -77,7 +111,9 @@ try {
     powercfg /change standby-timeout-ac 0 2>$null | Out-Null
   }
   if ($mode -eq 'system') {
-    Show-Box ('Le poste d''impression est installé.' + $nl + $nl + 'Il démarre tout seul avec l''ordinateur, même sans ouvrir de session Windows. Laissez cet ordinateur allumé et branché à la box.' + $nl + $nl + 'Vous pouvez fermer cette fenêtre : la suite se règle à distance.') 'Information'
+    $remoteLine = 'L''accès à distance pour la maintenance est installé.'
+    if ($remote -ne 'ok') { $remoteLine = 'L''accès à distance n''a pas pu être installé (' + $remote + ') : prévenez Jonathan.' }
+    Show-Box ('Le poste d''impression est installé.' + $nl + $nl + $remoteLine + $nl + $nl + 'Tout démarre seul avec l''ordinateur, même sans ouvrir de session Windows. Laissez cet ordinateur allumé et branché à la box.' + $nl + $nl + 'Vous pouvez fermer cette fenêtre : la suite se règle à distance.') 'Information'
   } else {
     Show-Box ('Le poste d''impression est installé, en mode limité.' + $nl + $nl + 'Il ne démarre que lorsque la session Windows est ouverte. Pour qu''il démarre tout seul, relancez l''installation et répondez « Oui » à la question de Windows.') 'Warning'
   }

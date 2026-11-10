@@ -10,6 +10,7 @@ import { can } from "@/lib/permissions";
 import { bizprintKeys, listBizPrintPrinters, type BizPrintPrinter } from "@/lib/print/bizprint";
 import { appUrl } from "@/lib/seo";
 import { AutoRefresh } from "@/components/order/AutoRefresh";
+import { decryptSecret } from "@/lib/crypto";
 import {
   addClosureAction, archiveRestaurantAction, createRestaurantAction, deleteClosureAction, deletePrinterAction, deleteRestaurantAction, deleteZoneAction,
   printerCodeAction, printerScanAction, printerTestAction, printerUseAddressAction, restoreRestaurantAction, revokeTabletAction, rotatePrinterTokenAction,
@@ -331,7 +332,7 @@ export default async function RestaurantSettings({ searchParams }: { searchParam
                 </div>
                 <div className="sm:col-span-2"><SubmitButton>Enregistrer</SubmitButton></div>
               </ActionForm>
-              {p && p.method === "LOCAL_AGENT" && <AgentPanel p={p} />}
+              {p && p.method === "LOCAL_AGENT" && <AgentPanel p={p} tech={tech} />}
               {p && p.method === "DIRECT_TCP" && (
                 <div className="mt-4 grid gap-3 rounded-xl bg-neutral-50 p-4 text-sm">
                   <p className="font-semibold">Réglage de la box (une seule fois)</p>
@@ -428,15 +429,17 @@ export default async function RestaurantSettings({ searchParams }: { searchParam
   );
 }
 
-type AgentInfo = { host?: string; version?: string; discovered?: string[]; scannedAt?: string; downloadedAt?: string; lastTest?: { at: string; ok: boolean; error: string }; lastError?: string; lastErrorAt?: string };
+type AgentInfo = { remote?: { tool: string; id: string; passwordEnc: string; host: string; at: string }; host?: string; version?: string; discovered?: string[]; scannedAt?: string; downloadedAt?: string; lastTest?: { at: string; ok: boolean; error: string }; lastError?: string; lastErrorAt?: string };
 const ago = (d: Date | string) => {
   const s = Math.round((Date.now() - new Date(d).getTime()) / 1000);
   return s < 60 ? "à l'instant" : s < 3600 ? `il y a ${Math.round(s / 60)} min` : new Date(d).toLocaleString("fr-FR", { timeZone: "Europe/Paris", dateStyle: "short", timeStyle: "short" });
 };
 
 /** Poste d'impression : installation par code, état, imprimantes trouvées sur le réseau, ticket d'essai — à distance. */
-function AgentPanel({ p }: { p: { id: string; address: string; agentInfo: unknown; lastSeenAt: Date | null; testRequestedAt: Date | null; scanRequestedAt: Date | null } }) {
+function AgentPanel({ p, tech }: { p: { id: string; address: string; agentInfo: unknown; lastSeenAt: Date | null; testRequestedAt: Date | null; scanRequestedAt: Date | null }; tech: boolean }) {
   const info = (p.agentInfo ?? {}) as AgentInfo;
+  let remotePassword = "";
+  try { remotePassword = tech && info.remote ? decryptSecret(info.remote.passwordEnc) : ""; } catch { remotePassword = ""; }
   const online = !!p.lastSeenAt && p.lastSeenAt > new Date(Date.now() - 20 * 60_000);
   return (
     <div className="mt-4 grid gap-4 rounded-xl bg-neutral-50 p-4 text-sm">
@@ -475,6 +478,13 @@ function AgentPanel({ p }: { p: { id: string; address: string; agentInfo: unknow
           )}
           <form action={printerScanAction} className="mt-2"><input type="hidden" name="id" value={p.id} /><button className="underline">Rechercher à nouveau</button></form>
           <p className="mt-1 text-xs text-neutral-500">Ou saisissez l'adresse dans le champ « Adresse de l'imprimante » ci-dessus.</p>
+        </div>
+      )}
+      {tech && info.remote && (
+        <div className="rounded-lg bg-white p-3 ring-1 ring-neutral-200">
+          <p className="font-semibold">Accès à distance ({info.remote.tool}) — installé {ago(info.remote.at)}{info.remote.host && ` sur « ${info.remote.host} »`}</p>
+          <p className="mt-1">N° : <code className="select-all font-bold">{info.remote.id.replace(/(\d{3})(?=\d)/g, "$1 ")}</code> · Mot de passe : <code className="select-all font-bold">{remotePassword || "illisible"}</code></p>
+          <p className="mt-1 text-xs text-neutral-600">Dans RustDesk sur votre ordinateur (rustdesk.com) : tapez ce n°, puis ce mot de passe. Un nouveau mot de passe est créé à chaque réinstallation.</p>
         </div>
       )}
       {p.address && (

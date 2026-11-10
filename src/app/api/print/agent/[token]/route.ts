@@ -1,3 +1,4 @@
+import { encryptSecret } from "@/lib/crypto";
 import { db } from "@/lib/db";
 import { json, readJson } from "@/lib/http";
 import { renderEscPos } from "@/lib/print/escpos";
@@ -35,7 +36,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
 
 type Body = {
   jobId?: string; ok?: boolean; error?: string;
-  report?: { host?: string; version?: string; discovered?: { address?: string }[] };
+  report?: { host?: string; version?: string; discovered?: { address?: string }[]; remote?: { tool?: string; id?: string; password?: string; host?: string } };
 };
 
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
@@ -43,6 +44,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   if (!printer) return json({ error: "Inconnu" }, 404);
   const body = (await readJson(req).catch(() => null)) as Body | null;
   const info = (printer.agentInfo ?? {}) as Record<string, unknown>;
+
+  // Accès à distance installé avec le poste (RustDesk) : n° et mot de passe, chiffré.
+  const remote = body?.report?.remote;
+  if (remote) {
+    const id = String(remote.id ?? "").replace(/\D/g, "").slice(0, 20);
+    const password = String(remote.password ?? "").slice(0, 64);
+    if (!id || !password) return json({ error: "Accès à distance incomplet" }, 400);
+    await db.printer.update({
+      where: { id: printer.id },
+      data: { agentInfo: { ...info, remote: { tool: String(remote.tool ?? "RustDesk").slice(0, 20), id, passwordEnc: encryptSecret(password), host: String(remote.host ?? "").slice(0, 60), at: new Date().toISOString() } } },
+    });
+    return json({ ok: true });
+  }
 
   if (body?.report) {
     const discovered = ([] as { address?: string }[]).concat(body.report.discovered ?? [])
