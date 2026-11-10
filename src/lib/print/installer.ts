@@ -1,9 +1,10 @@
 /**
  * Installateur Windows du poste d'impression : UN fichier « .cmd » à double-cliquer,
- * sans droits administrateur ni logiciel à installer (PowerShell est fourni avec Windows).
+ * sans logiciel à installer (PowerShell est fourni avec Windows 10 et 11).
  *
- * Il copie l'agent dans %LOCALAPPDATA%\YaomaImpression, le lance en arrière-plan, l'ajoute
- * au démarrage de Windows et empêche la mise en veille sur secteur. L'agent interroge le site
+ * Avec l'accord de Windows (« Oui ») : tâche planifiée au démarrage, sous le compte système,
+ * donc active même sans session ouverte (redémarrage après une mise à jour). Sinon : démarrage
+ * à l'ouverture de la session. Mise en veille sur secteur désactivée dans les deux cas. L'agent interroge le site
  * toutes les 3 secondes, cherche lui-même les imprimantes du réseau (port 9100) et les signale
  * au back-office, où l'on choisit l'imprimante et lance un ticket d'essai — à distance.
  *
@@ -11,36 +12,77 @@
  * pour rester de simples chaînes JavaScript.
  */
 
-export const AGENT_VERSION = "1.0";
+export const AGENT_VERSION = "1.1";
 
 const INSTALL = String.raw`
 $ErrorActionPreference = 'Stop'
 $url = '__URL__'
-$dir = Join-Path $env:LOCALAPPDATA 'YaomaImpression'
-try {
+$exe = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+$nl = [Environment]::NewLine
+function Show-Box([string]$text, [string]$icon) {
+  Add-Type -AssemblyName PresentationFramework
+  [System.Windows.MessageBox]::Show($text, 'Impression Yaoma', 'OK', $icon) | Out-Null
+}
+function Stop-OldAgents {
+  Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -like '*YaomaImpression*agent.ps1*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+}
+function Write-AgentFiles([string]$dir) {
   New-Item -ItemType Directory -Force -Path $dir | Out-Null
-  # Ancien poste encore lancé : arrêté avant la mise à jour.
-  Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -like '*YaomaImpression*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
   [IO.File]::WriteAllText((Join-Path $dir 'agent.ps1'), $parts[2], (New-Object Text.UTF8Encoding $true))
   [IO.File]::WriteAllText((Join-Path $dir 'adresse.txt'), $url)
-  $exe = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
-  $arguments = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + (Join-Path $dir 'agent.ps1') + '"'
-  $shell = New-Object -ComObject WScript.Shell
-  $link = $shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Startup')) 'Impression Yaoma.lnk'))
-  $link.TargetPath = $exe
-  $link.Arguments = $arguments
-  $link.WindowStyle = 7
-  $link.Save()
-  Start-Process -FilePath $exe -ArgumentList $arguments -WindowStyle Hidden
-  # Ordinateur toujours éveillé quand il est branché (sinon plus d'impression la nuit / en service).
-  powercfg /change standby-timeout-ac 0 2>$null | Out-Null
-  powercfg /change hibernate-timeout-ac 0 2>$null | Out-Null
-  $msg = 'Le poste d''impression est installé.' + [Environment]::NewLine + [Environment]::NewLine + 'Il démarre tout seul avec l''ordinateur. Laissez cet ordinateur allumé et branché au même réseau (box) que l''imprimante.' + [Environment]::NewLine + [Environment]::NewLine + 'Vous pouvez fermer cette fenêtre : la suite se règle à distance depuis le back-office.'
-  Add-Type -AssemblyName PresentationFramework
-  [System.Windows.MessageBox]::Show($msg, 'Impression Yaoma', 'OK', 'Information') | Out-Null
+  return ('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + (Join-Path $dir 'agent.ps1') + '"')
+}
+$startupLink = Join-Path ([Environment]::GetFolderPath('Startup')) 'Impression Yaoma.lnk'
+$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+$isAdmin = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
+# Pas encore administrateur : relance avec la confirmation Windows (« Oui »), pour démarrer
+# avec Windows même sans ouvrir de session (redémarrage après une mise à jour, une coupure…).
+if (-not $isAdmin) {
+  try {
+    Start-Process -FilePath $self -Verb RunAs
+    exit
+  } catch { }
+}
+
+$mode = 'user'
+try {
+  if ($isAdmin) {
+    try {
+      $arguments = Write-AgentFiles (Join-Path $env:ProgramData 'YaomaImpression')
+      $action = New-ScheduledTaskAction -Execute $exe -Argument $arguments
+      $trigger = New-ScheduledTaskTrigger -AtStartup
+      $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Seconds 0) -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew
+      $system = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+      Register-ScheduledTask -TaskName 'Impression Yaoma' -Action $action -Trigger $trigger -Settings $settings -Principal $system -Force | Out-Null
+      Stop-OldAgents
+      if (Test-Path $startupLink) { Remove-Item $startupLink -Force }
+      Start-ScheduledTask -TaskName 'Impression Yaoma'
+      powercfg /change standby-timeout-ac 0 2>$null | Out-Null
+      powercfg /change hibernate-timeout-ac 0 2>$null | Out-Null
+      $mode = 'system'
+    } catch { $mode = 'user' }
+  }
+  if ($mode -eq 'user') {
+    # Sans droits administrateur : démarrage à l'ouverture de la session Windows.
+    $arguments = Write-AgentFiles (Join-Path $env:LOCALAPPDATA 'YaomaImpression')
+    Stop-OldAgents
+    $shell = New-Object -ComObject WScript.Shell
+    $link = $shell.CreateShortcut($startupLink)
+    $link.TargetPath = $exe
+    $link.Arguments = $arguments
+    $link.WindowStyle = 7
+    $link.Save()
+    Start-Process -FilePath $exe -ArgumentList $arguments -WindowStyle Hidden
+    powercfg /change standby-timeout-ac 0 2>$null | Out-Null
+  }
+  if ($mode -eq 'system') {
+    Show-Box ('Le poste d''impression est installé.' + $nl + $nl + 'Il démarre tout seul avec l''ordinateur, même sans ouvrir de session Windows. Laissez cet ordinateur allumé et branché à la box.' + $nl + $nl + 'Vous pouvez fermer cette fenêtre : la suite se règle à distance.') 'Information'
+  } else {
+    Show-Box ('Le poste d''impression est installé, en mode limité.' + $nl + $nl + 'Il ne démarre que lorsque la session Windows est ouverte. Pour qu''il démarre tout seul, relancez l''installation et répondez « Oui » à la question de Windows.') 'Warning'
+  }
 } catch {
-  Add-Type -AssemblyName PresentationFramework
-  [System.Windows.MessageBox]::Show('Installation impossible : ' + $_.Exception.Message, 'Impression Yaoma', 'OK', 'Error') | Out-Null
+  Show-Box ('Installation impossible : ' + $_.Exception.Message) 'Error'
 }
 `;
 
@@ -152,7 +194,7 @@ export function buildInstaller(agentUrl: string): string {
     "@echo off",
     "title Installation de l'impression Yaoma",
     "echo Installation en cours, patientez...",
-    `powershell -NoProfile -ExecutionPolicy Bypass -Command "$parts = [IO.File]::ReadAllText('%~f0', [Text.Encoding]::UTF8) -split ('#==PAR' + 'TIE==#'); Invoke-Expression $parts[1]"`,
+    `powershell -NoProfile -ExecutionPolicy Bypass -Command "$self = '%~f0'; $parts = [IO.File]::ReadAllText('%~f0', [Text.Encoding]::UTF8) -split ('#==PAR' + 'TIE==#'); Invoke-Expression $parts[1]"`,
     "exit /b",
   ].join("\n");
   const safeUrl = agentUrl.replace(/'/g, "");
