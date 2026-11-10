@@ -307,6 +307,26 @@ export async function printerScanAction(form: FormData) {
   done();
 }
 
+/** « Désinstaller du PC » : le poste se désinstalle lui-même (imprimante et RustDesk) à son prochain passage. */
+export async function printerUninstallAction(_: Result, form: FormData): Promise<Result> {
+  const p = await db.printer.findUniqueOrThrow({ where: { id: String(form.get("id")) } });
+  const staff = await authorize("restaurant.settings", p.restaurantId);
+  const info = (p.agentInfo ?? {}) as Record<string, unknown>;
+  await db.printer.update({ where: { id: p.id }, data: { agentInfo: { ...info, uninstallRequestedAt: new Date().toISOString() } } });
+  await logAction(staff, "printer.uninstall_requested", "Printer", p.id, p.restaurantId, { host: info.host ?? "" });
+  return done("Désinstallation demandée.");
+}
+
+/** « Oublier ce PC » (perdu, hors service) : jeton changé, plus aucun accès ; infos et accès à distance effacés. */
+export async function printerForgetAction(_: Result, form: FormData): Promise<Result> {
+  const p = await db.printer.findUniqueOrThrow({ where: { id: String(form.get("id")) } });
+  const staff = await authorize("restaurant.settings", p.restaurantId);
+  const info = (p.agentInfo ?? {}) as Record<string, unknown>;
+  await db.printer.update({ where: { id: p.id }, data: { agentInfo: {}, address: "", lastSeenAt: null, testRequestedAt: null, scanRequestedAt: null, deviceToken: randomToken(24) } });
+  await logAction(staff, "printer.forget", "Printer", p.id, p.restaurantId, { host: info.host ?? "" });
+  return done("PC oublié : il n'a plus accès au site.");
+}
+
 /** Choix de l'imprimante trouvée par le poste. */
 export async function printerUseAddressAction(form: FormData) {
   const p = await db.printer.findUniqueOrThrow({ where: { id: String(form.get("id")) } });

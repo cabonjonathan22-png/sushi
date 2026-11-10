@@ -13,7 +13,7 @@ import { AutoRefresh } from "@/components/order/AutoRefresh";
 import { decryptSecret } from "@/lib/crypto";
 import {
   addClosureAction, archiveRestaurantAction, createRestaurantAction, deleteClosureAction, deletePrinterAction, deleteRestaurantAction, deleteZoneAction,
-  printerCodeAction, printerScanAction, printerTestAction, printerUseAddressAction, restoreRestaurantAction, revokeTabletAction, rotatePrinterTokenAction,
+  printerCodeAction, printerForgetAction, printerScanAction, printerUninstallAction, printerTestAction, printerUseAddressAction, restoreRestaurantAction, revokeTabletAction, rotatePrinterTokenAction,
   saveBizPrintAction, saveInfoAction, savePaymentMethodsAction, savePrinterAction, saveServicesAction, saveStripeAction, saveZoneAction, tabletCodeAction,
 } from "./actions";
 
@@ -429,7 +429,7 @@ export default async function RestaurantSettings({ searchParams }: { searchParam
   );
 }
 
-type AgentInfo = { remote?: { tool: string; id: string; passwordEnc: string; host: string; at: string }; host?: string; version?: string; discovered?: string[]; scannedAt?: string; downloadedAt?: string; lastTest?: { at: string; ok: boolean; error: string }; lastError?: string; lastErrorAt?: string };
+type AgentInfo = { uninstallRequestedAt?: string; uninstalledAt?: string; uninstalledHost?: string; remote?: { tool: string; id: string; passwordEnc: string; host: string; at: string }; host?: string; version?: string; discovered?: string[]; scannedAt?: string; downloadedAt?: string; lastTest?: { at: string; ok: boolean; error: string }; lastError?: string; lastErrorAt?: string };
 const ago = (d: Date | string) => {
   const s = Math.round((Date.now() - new Date(d).getTime()) / 1000);
   return s < 60 ? "à l'instant" : s < 3600 ? `il y a ${Math.round(s / 60)} min` : new Date(d).toLocaleString("fr-FR", { timeZone: "Europe/Paris", dateStyle: "short", timeStyle: "short" });
@@ -450,6 +450,7 @@ function AgentPanel({ p, tech }: { p: { id: string; address: string; agentInfo: 
       </div>
       <div>
         <p className="font-semibold">2. État du poste</p>
+        {info.uninstalledAt && <p className="mt-1 text-neutral-700">Poste désinstallé {ago(info.uninstalledAt)}{info.uninstalledHost && ` de « ${info.uninstalledHost} »`}. Pour l'installer sur un autre PC, créez un code ci-dessus.</p>}
         {p.lastSeenAt ? (
           <p className="mt-1">{online ? <span className="chip bg-green-100 text-green-800">en ligne</span> : <span className="chip bg-red-100 text-red-800">hors ligne</span>}{" "}
             dernière connexion {ago(p.lastSeenAt)}{info.host && ` · ordinateur « ${info.host} »`}{info.version && ` · version ${info.version}`}</p>
@@ -485,6 +486,24 @@ function AgentPanel({ p, tech }: { p: { id: string; address: string; agentInfo: 
           <p className="font-semibold">Accès à distance ({info.remote.tool}) — installé {ago(info.remote.at)}{info.remote.host && ` sur « ${info.remote.host} »`}</p>
           <p className="mt-1">N° : <code className="select-all font-bold">{info.remote.id.replace(/(\d{3})(?=\d)/g, "$1 ")}</code> · Mot de passe : <code className="select-all font-bold">{remotePassword || "illisible"}</code></p>
           <p className="mt-1 text-xs text-neutral-600">Dans RustDesk sur votre ordinateur (rustdesk.com) : tapez ce n°, puis ce mot de passe. Un nouveau mot de passe est créé à chaque réinstallation.</p>
+        </div>
+      )}
+      {(p.lastSeenAt || info.remote) && (
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-neutral-200 pt-3">
+          {info.uninstallRequestedAt ? (
+            <p className="text-amber-900">Désinstallation demandée {ago(info.uninstallRequestedAt)} : le poste se retire du PC à son prochain passage (quelques secondes pendant le service, jusqu'à 15 minutes en dehors).</p>
+          ) : (
+            <ActionForm action={printerUninstallAction}
+              confirm="Désinstaller ce poste du PC ? L'imprimante n'imprimera plus les commandes, et l'accès à distance (RustDesk) sera retiré.">
+              <input type="hidden" name="id" value={p.id} />
+              <SubmitButton className="btn-ghost min-h-0 py-1 text-red-700" pendingLabel="…">Désinstaller du PC</SubmitButton>
+            </ActionForm>
+          )}
+          <ActionForm action={printerForgetAction}
+            confirm="Oublier ce PC ? À utiliser s'il est perdu ou hors service : il n'aura plus accès au site. Rien n'est retiré du PC lui-même.">
+            <input type="hidden" name="id" value={p.id} />
+            <button type="submit" className="text-sm text-red-700 underline">Oublier ce PC</button>
+          </ActionForm>
         </div>
       )}
       {p.address && (

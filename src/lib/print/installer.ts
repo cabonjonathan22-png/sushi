@@ -14,7 +14,7 @@
  * pour rester de simples chaînes JavaScript.
  */
 
-export const AGENT_VERSION = "1.2";
+export const AGENT_VERSION = "1.3";
 
 const INSTALL = String.raw`
 $ErrorActionPreference = 'Stop'
@@ -48,6 +48,8 @@ function Install-RemoteAccess {
     Start-Process -FilePath $setup -ArgumentList '--silent-install'
     for ($i = 0; $i -lt 60 -and -not (Test-Path $rd); $i++) { Start-Sleep -Seconds 2 }
     Start-Sleep -Seconds 10
+    # Repère : RustDesk installé par nous, donc retiré par « Désinstaller du PC ».
+    [IO.File]::WriteAllText((Join-Path $env:ProgramData 'YaomaImpression\rustdesk-par-yaoma.txt'), (Get-Date -Format 's'))
   }
   if (-not (Get-Service -Name 'RustDesk' -ErrorAction SilentlyContinue)) {
     Start-Process -FilePath $rd -ArgumentList '--install-service' -Wait
@@ -189,12 +191,36 @@ function Find-Printers {
   return ,$found
 }
 
+# « Désinstaller du PC » (back-office) : retire le poste, sa tâche de démarrage et RustDesk s'il l'a installé.
+function Uninstall-Poste {
+  Write-Log 'Désinstallation demandée depuis le back-office'
+  $rd = Join-Path $env:ProgramFiles 'RustDesk\rustdesk.exe'
+  if ((Test-Path (Join-Path $dir 'rustdesk-par-yaoma.txt')) -and (Test-Path $rd)) {
+    try { Start-Process -FilePath $rd -ArgumentList '--uninstall' -Wait } catch {}
+    Start-Sleep -Seconds 5
+    if (Get-Service -Name 'RustDesk' -ErrorAction SilentlyContinue) {
+      Stop-Service -Name 'RustDesk' -Force -ErrorAction SilentlyContinue
+      sc.exe delete RustDesk | Out-Null
+    }
+    Get-Process -Name 'rustdesk' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Remove-Item (Join-Path $env:ProgramFiles 'RustDesk') -Recurse -Force -ErrorAction SilentlyContinue
+  }
+  try { Unregister-ScheduledTask -TaskName 'Impression Yaoma' -Confirm:$false -ErrorAction SilentlyContinue } catch {}
+  $link = Join-Path ([Environment]::GetFolderPath('Startup')) 'Impression Yaoma.lnk'
+  if (Test-Path $link) { Remove-Item $link -Force -ErrorAction SilentlyContinue }
+  try { Invoke-Site 'POST' @{ report = @{ uninstalled = $true; host = $env:COMPUTERNAME } } | Out-Null } catch {}
+  # Le dossier du poste est effacé juste après l'arrêt de ce script.
+  Start-Process -FilePath 'cmd.exe' -ArgumentList ('/c timeout /t 5 /nobreak >nul & rmdir /s /q "' + $dir + '"') -WindowStyle Hidden
+  exit
+}
+
 Write-Log ('Démarrage du poste d''impression ' + $Version + ' sur ' + $env:COMPUTERNAME)
 $lastScan = [DateTime]::MinValue
 while ($true) {
   $pause = 3
   try {
     $r = Invoke-Site 'GET' $null
+    if ($r.config.uninstall) { Uninstall-Poste }
     if ($r.config.wait) { $pause = [int]$r.config.wait }
     if ($r.config.scan -and ((Get-Date) - $lastScan).TotalSeconds -gt 20) {
       $lastScan = Get-Date

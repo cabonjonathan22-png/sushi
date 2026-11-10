@@ -1,4 +1,4 @@
-import { encryptSecret } from "@/lib/crypto";
+import { encryptSecret, randomToken } from "@/lib/crypto";
 import { db } from "@/lib/db";
 import { json, readJson } from "@/lib/http";
 import { renderEscPos } from "@/lib/print/escpos";
@@ -17,9 +17,10 @@ const TEST_JOB = "test";
 export async function GET(_req: Request, { params }: { params: Promise<{ token: string }> }) {
   const printer = await printerByToken((await params).token);
   if (!printer) return json({ error: "Inconnu" }, 404);
-  const info = (printer.agentInfo ?? {}) as { discovered?: unknown[] };
+  const info = (printer.agentInfo ?? {}) as { discovered?: unknown[]; uninstallRequestedAt?: string };
   // Première connexion du poste (aucun rapport) : il cherche tout de suite les imprimantes du réseau.
-  const config = { address: printer.address, scan: !!printer.scanRequestedAt || !info.discovered, wait: await agentPollSeconds(printer) };
+  const config = { address: printer.address, scan: !!printer.scanRequestedAt || !info.discovered, wait: await agentPollSeconds(printer), uninstall: !!info.uninstallRequestedAt };
+  if (config.uninstall) return json({ job: null, config });
 
   // Ticket d'essai demandé depuis le back-office.
   if (printer.testRequestedAt && printer.testRequestedAt > new Date(Date.now() - 10 * 60_000)) {
@@ -36,7 +37,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
 
 type Body = {
   jobId?: string; ok?: boolean; error?: string;
-  report?: { host?: string; version?: string; discovered?: { address?: string }[]; remote?: { tool?: string; id?: string; password?: string; host?: string } };
+  report?: { host?: string; version?: string; uninstalled?: boolean; discovered?: { address?: string }[]; remote?: { tool?: string; id?: string; password?: string; host?: string } };
 };
 
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
@@ -44,6 +45,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   if (!printer) return json({ error: "Inconnu" }, 404);
   const body = (await readJson(req).catch(() => null)) as Body | null;
   const info = (printer.agentInfo ?? {}) as Record<string, unknown>;
+
+  // Poste désinstallé à la demande du back-office : il est oublié et son jeton change (plus aucun accès).
+  if (body?.report?.uninstalled) {
+    await db.printer.update({
+      where: { id: printer.id },
+      data: { agentInfo: { uninstalledAt: new Date().toISOString(), uninstalledHost: String(body.report.host ?? "").slice(0, 60) }, address: "", lastSeenAt: null, testRequestedAt: null, scanRequestedAt: null, deviceToken: randomToken(24) },
+    });
+    return json({ ok: true });
+  }
 
   // Accès à distance installé avec le poste (RustDesk) : n° et mot de passe, chiffré.
   const remote = body?.report?.remote;

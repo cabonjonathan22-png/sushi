@@ -77,9 +77,9 @@ export function parseAddress(address: string): { host: string; port: number } | 
 export async function agentPollSeconds(p: { restaurantId: string; address: string; agentInfo: unknown; testRequestedAt: Date | null; scanRequestedAt: Date | null }, now = new Date()): Promise<number> {
   const recent = (d: Date | null) => !!d && d > new Date(now.getTime() - 15 * 60_000);
   // Installation / réglage à distance en cours : le poste reste réactif 15 minutes.
-  const info = (p.agentInfo ?? {}) as { discovered?: unknown; scannedAt?: string; downloadedAt?: string; lastTest?: { at?: string } };
+  const info = (p.agentInfo ?? {}) as { discovered?: unknown; scannedAt?: string; downloadedAt?: string; lastTest?: { at?: string }; uninstallRequestedAt?: string };
   const at = (v?: string) => (v ? new Date(v) : null);
-  if (!p.address || !info.discovered || [p.testRequestedAt, p.scanRequestedAt, at(info.scannedAt), at(info.downloadedAt), at(info.lastTest?.at)].some(recent)) return 3;
+  if (!p.address || !info.discovered || [p.testRequestedAt, p.scanRequestedAt, at(info.scannedAt), at(info.downloadedAt), at(info.lastTest?.at), at(info.uninstallRequestedAt)].some(recent)) return 3;
   const r = await db.restaurant.findUnique({ where: { id: p.restaurantId }, select: { timezone: true, openingHours: true } });
   if (!r?.openingHours.length) return 5;
   const day = localDate(now, r.timezone);
