@@ -8,7 +8,7 @@ import type { OrderStatus } from "../order-status";
  * e-mails client + restaurant, webhooks sortants, tickets pour les imprimantes
  * qui interrogent le serveur. Tout est mis en file dans la transaction appelante.
  */
-export async function onOrderConfirmed(tx: Tx, order: { id: string; restaurantId: string; customerEmail: string }) {
+export async function onOrderConfirmed(tx: Tx, order: { id: string; restaurantId: string; customerEmail: string }, opts: { alerts?: boolean; print?: boolean } = {}) {
   const restaurant = await tx.restaurant.findUniqueOrThrow({
     where: { id: order.restaurantId },
     select: { alertEmails: true, email: true, printers: { where: { active: true, autoPrint: true } }, webhooks: { where: { active: true } } },
@@ -16,7 +16,7 @@ export async function onOrderConfirmed(tx: Tx, order: { id: string; restaurantId
 
   if (order.customerEmail) await enqueue("email", { kind: "customerConfirmation", orderId: order.id }, tx);
   const alerts = restaurant.alertEmails.length ? restaurant.alertEmails : restaurant.email ? [restaurant.email] : [];
-  if (alerts.length) await enqueue("email", { kind: "restaurantNewOrder", orderId: order.id, to: alerts }, tx);
+  if (alerts.length && opts.alerts !== false) await enqueue("email", { kind: "restaurantNewOrder", orderId: order.id, to: alerts }, tx);
 
   for (const w of restaurant.webhooks.filter((x) => x.events.includes("order.created"))) {
     await enqueue("webhook", { endpointId: w.id, event: "order.created", orderId: order.id, at: new Date().toISOString() }, tx);
@@ -24,7 +24,7 @@ export async function onOrderConfirmed(tx: Tx, order: { id: string; restaurantId
 
   // Imprimantes « serveur » : un travail par imprimante. L'impression navigateur
   // est déclenchée par l'écran des commandes ouvert (pas de travail en base).
-  for (const p of restaurant.printers.filter((x) => x.method !== "BROWSER")) {
+  for (const p of opts.print === false ? [] : restaurant.printers.filter((x) => x.method !== "BROWSER")) {
     const job = await tx.printJob.create({ data: { orderId: order.id, printerId: p.id, copies: p.copies } });
     if (p.method === "PRINTNODE") await enqueue("printnode", { printJobId: job.id }, tx);
     if (p.method === "BIZPRINT") await enqueue("bizprint", { printJobId: job.id }, tx);

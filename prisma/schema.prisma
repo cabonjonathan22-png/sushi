@@ -106,6 +106,7 @@ enum OrderSource {
   API
   ADMIN
   IMPORT_WP
+  POS // vente au comptoir (écran Caisse)
 }
 
 // ───────────────────────────── Réglages globaux ─────────────────────────────
@@ -659,6 +660,13 @@ model Order {
   locale       String  @default("")
   cancelReason String  @default("")
 
+  // Caisse (ventes au comptoir) : table, monnaie rendue, chaînage des tickets (inaltérabilité).
+  tableLabel  String @default("")
+  changeCents Int    @default(0)
+  /// Empreinte du ticket précédent de la caisse du restaurant, et de ce ticket (SHA-256).
+  chainPrev   String @default("")
+  chainHash   String @default("")
+
   /// Fidélité : récompense utilisée sur cette commande (figée à la commande).
   loyaltyRewardId      String?
   loyaltyRewardName    String  @default("")
@@ -758,6 +766,8 @@ model PrintJob {
   printerId   String?
   printer     Printer?       @relation(fields: [printerId], references: [id], onDelete: SetNull)
   copies      Int            @default(1)
+  /// ORDER (ticket de préparation), RECEIPT (ticket client de caisse), DRAWER (ouverture du tiroir-caisse)
+  kind        String         @default("ORDER")
   status      PrintJobStatus @default(PENDING)
   attempts    Int            @default(0)
   lastError   String         @default("")

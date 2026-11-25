@@ -1,7 +1,6 @@
 import { db } from "../db";
 import { loadOrder } from "../orders/load";
-import { renderEscPos } from "./escpos";
-import { buildTicket, COLUMNS } from "./ticket";
+import { legalInfo, orderEscPos } from "./jobs";
 
 /**
  * PrintNode (printnode.com) : un petit client installé sur le PC du restaurant
@@ -15,8 +14,7 @@ export async function submitPrintNode(payload: { printJobId: string }) {
   if (!key) throw new Error("PRINTNODE_API_KEY manquant");
   const order = await loadOrder(job.orderId);
   if (!order) return;
-  const cols = COLUMNS[job.printer.paperWidth];
-  const content = renderEscPos(buildTicket(order), cols, job.copies).toString("base64");
+  const content = orderEscPos(order, job.printer.paperWidth, job.copies, job.kind, await legalInfo()).toString("base64");
   const res = await fetch("https://api.printnode.com/printjobs", {
     method: "POST",
     headers: { Authorization: `Basic ${Buffer.from(`${key}:`).toString("base64")}`, "Content-Type": "application/json" },

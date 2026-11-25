@@ -20,6 +20,8 @@ export async function boardOrders(restaurantId: string, opts: { includeDoneMinut
   return orders.map((o) => ({
     id: o.id,
     reference: o.reference,
+    source: o.source,
+    tableLabel: o.tableLabel,
     dailyNumber: o.dailyNumber,
     status: o.status,
     mode: o.mode,

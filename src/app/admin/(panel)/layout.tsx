@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 
 const NAV: { href: string; label: string; perm?: Permission; icon: string }[] = [
   { href: "/admin", label: "Accueil", icon: "🏠" },
+  { href: "/admin/caisse", label: "Caisse", perm: "pos.sell", icon: "💶" },
   { href: "/admin/commandes", label: "Commandes en cours", perm: "orders.view", icon: "🛎️" },
   { href: "/admin/commandes/historique", label: "Historique", perm: "orders.view", icon: "🗂️" },
   { href: "/admin/clients", label: "Clients", perm: "customers.view", icon: "👤" },

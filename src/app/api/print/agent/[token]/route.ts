@@ -31,7 +31,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
 
   const claimed = await claimJob(printer.id);
   if (!claimed) return json({ job: null, config });
-  const data = orderEscPos(claimed.order, printer.paperWidth, claimed.copies).toString("base64");
+  const data = orderEscPos(claimed.order, printer.paperWidth, claimed.copies, claimed.kind, claimed.legal).toString("base64");
   return json({ job: { id: claimed.jobId, reference: claimed.order.reference, data }, config });
 }
 

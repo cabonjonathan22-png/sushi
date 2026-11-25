@@ -234,3 +234,67 @@ export function renderEpsonXml(t: Ticket, cols: number): string {
   x.push('<cut type="feed"/>');
   return `<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print"><text lang="fr"/>${x.join("")}</epos-print>`;
 }
+
+/** Identité légale imprimée sur le ticket de caisse (réglages légaux du site). */
+export interface Legal {
+  brandName: string;
+  companyName: string;
+  siret: string;
+  vatNumber: string;
+}
+
+function receiptDateTime(at: Date): string {
+  return new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(at);
+}
+
+/**
+ * Ticket client de la caisse (vente au comptoir) : mentions de l'entreprise, n° de ticket
+ * (séquentiel, sans trou), lignes, remises, total, ventilation TVA, règlements, monnaie rendue
+ * et empreinte du ticket (chaînage). « DUPLICATA » sur une réimpression.
+ */
+export function buildReceipt(o: FullOrder, legal: Legal, duplicate = false): Ticket {
+  const L: TicketLine[] = [];
+  L.push({ kind: "big", text: (legal.brandName || o.restaurant.name).toUpperCase() });
+  L.push({ kind: "center", text: o.restaurant.name });
+  L.push({ kind: "center", text: `${o.restaurant.street}, ${o.restaurant.postalCode} ${o.restaurant.city}` });
+  if (o.restaurant.phones[0]) L.push({ kind: "center", text: `Tél. ${o.restaurant.phones[0]}` });
+  if (legal.companyName) L.push({ kind: "center", text: legal.companyName });
+  if (legal.siret) L.push({ kind: "center", text: `SIRET ${legal.siret}` });
+  if (legal.vatNumber) L.push({ kind: "center", text: `TVA ${legal.vatNumber}` });
+  if (duplicate) L.push({ kind: "big", text: "DUPLICATA" });
+  L.push({ kind: "rule" });
+  L.push({ kind: "pair", left: `Ticket n° ${o.number}`, right: receiptDateTime(o.placedAt), bold: true });
+  L.push({ kind: "text", text: `${MODE_LABELS[o.mode]}${o.tableLabel ? ` · Table ${o.tableLabel}` : ""} · Commande n° ${o.dailyNumber}` });
+  L.push({ kind: "rule" });
+  for (const l of o.lines) {
+    const opts = (l.options as unknown as OrderLineOption[]).map((x) => `+ ${x.name}`);
+    L.push({ kind: "item", qty: l.quantity, name: l.name, price: euros(l.totalCents), details: [...(l.variantLabel ? [l.variantLabel] : []), ...opts] });
+  }
+  L.push({ kind: "rule" });
+  if (o.extrasDiscountCents) L.push({ kind: "pair", left: "Petits plus offerts", right: `-${euros(o.extrasDiscountCents)}` });
+  if (o.discountCents) L.push({ kind: "pair", left: o.promoCode && o.promoCode !== "REMISE" ? `Remise ${o.promoCode}` : "Remise", right: `-${euros(o.discountCents)}` });
+  if (o.loyaltyDiscountCents) L.push({ kind: "pair", left: `Fidélité ${o.loyaltyRewardName}`.trim(), right: `-${euros(o.loyaltyDiscountCents)}` });
+  L.push({ kind: "pair", left: "TOTAL TTC", right: euros(o.totalCents), bold: true });
+  for (const v of o.vatBreakdown as unknown as { rate: number; baseCents: number; vatCents: number }[]) {
+    L.push({ kind: "pair", left: `TVA ${(v.rate / 100).toLocaleString("fr-FR")} % sur ${euros(v.baseCents)} HT`, right: euros(v.vatCents) });
+  }
+  L.push({ kind: "rule" });
+  for (const p of o.payments.filter((x) => x.status === "SUCCEEDED")) {
+    L.push({ kind: "pair", left: PAYMENT_METHOD_LABELS[p.method], right: euros(p.amountCents + (p.method === "CASH" ? o.changeCents : 0)) });
+  }
+  if (o.changeCents) L.push({ kind: "pair", left: "Rendu monnaie", right: euros(o.changeCents), bold: true });
+  L.push({ kind: "rule" });
+  L.push({ kind: "center", text: "Merci de votre visite !" });
+  if (o.chainHash) L.push({ kind: "center", text: `Empreinte ${o.chainHash.slice(0, 16)}` });
+  L.push({ kind: "center", text: o.reference });
+  L.push({ kind: "feed" });
+  return { lines: L };
+}
+
+/** Tickets d'un travail d'impression : préparation (1 à 3 exemplaires), ticket client, ou rien (tiroir seul). */
+export function jobTickets(o: FullOrder, kind: string, copies: number, legal: Legal): Ticket[] {
+  if (kind === "DRAWER") return [];
+  if (kind === "RECEIPT" || kind === "RECEIPT_DUP") return [buildReceipt(o, legal, kind === "RECEIPT_DUP")];
+  const labels = copies > 1 ? ["CUISINE", o.mode === "DELIVERY" ? "LIVREUR" : "COMPTOIR", "CLIENT"].slice(0, copies) : [undefined];
+  return labels.map((l) => buildTicket(o, l));
+}

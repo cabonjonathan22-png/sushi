@@ -1,5 +1,5 @@
 import { claimJob, completeJob, printerByToken } from "@/lib/print/jobs";
-import { buildTicket, COLUMNS, renderEpsonXml } from "@/lib/print/ticket";
+import { COLUMNS, jobTickets, renderEpsonXml } from "@/lib/print/ticket";
 
 /**
  * Epson Server Direct Print (TM-m30, TM-T88VI/VII, TM-T20III avec interface réseau…).
@@ -25,8 +25,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   const claimed = await claimJob(printer.id);
   if (!claimed) return new Response("", { status: 200 });
   const cols = COLUMNS[printer.paperWidth];
-  const labels = claimed.copies > 1 ? ["CUISINE", claimed.order.mode === "DELIVERY" ? "LIVREUR" : "COMPTOIR", "CLIENT"].slice(0, claimed.copies) : [undefined];
-  const body = labels.map((l) => `<ePOSPrint><Parameter><devid>local_printer</devid><timeout>10000</timeout><printjobid>${claimed.jobId}</printjobid></Parameter><PrintData>${renderEpsonXml(buildTicket(claimed.order, l), cols)}</PrintData></ePOSPrint>`).join("");
+  const tickets = jobTickets(claimed.order, claimed.kind, claimed.copies, claimed.legal);
+  const body = tickets.map((t) => `<ePOSPrint><Parameter><devid>local_printer</devid><timeout>10000</timeout><printjobid>${claimed.jobId}</printjobid></Parameter><PrintData>${renderEpsonXml(t, cols)}</PrintData></ePOSPrint>`).join("");
   return new Response(`<?xml version="1.0" encoding="utf-8"?><PrintRequestInfo Version="2.00">${body}</PrintRequestInfo>`, {
     headers: { "Content-Type": "text/xml; charset=utf-8" },
   });

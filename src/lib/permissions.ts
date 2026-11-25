@@ -15,6 +15,7 @@ export type Permission =
   | "orders.print"
   | "orders.payment" // marquer réglé
   | "orders.refund"
+  | "pos.sell" // encaisser au comptoir (écran Caisse)
   | "stock.toggle" // rupture en 1 clic
   | "menu.edit" // catalogue commun, catégories, produits, petits plus
   | "menu.restaurant" // surcharges par restaurant (prix, actif)
@@ -30,21 +31,21 @@ export type Permission =
 
 const MATRIX: Record<Role, Permission[]> = {
   SUPER_ADMIN: [
-    "orders.view", "orders.update", "orders.print", "orders.payment", "orders.refund", "stock.toggle",
+    "orders.view", "orders.update", "orders.print", "orders.payment", "orders.refund", "pos.sell", "stock.toggle",
     "menu.edit", "menu.restaurant", "promos.edit", "customers.view", "restaurant.settings", "restaurant.create",
     "accounting.view", "accounting.close", "users.manage", "audit.view", "tech.config",
   ],
   OWNER: [
-    "orders.view", "orders.update", "orders.print", "orders.payment", "orders.refund", "stock.toggle",
+    "orders.view", "orders.update", "orders.print", "orders.payment", "orders.refund", "pos.sell", "stock.toggle",
     "menu.edit", "menu.restaurant", "promos.edit", "customers.view", "restaurant.settings", "restaurant.create",
     "accounting.view", "accounting.close", "users.manage", "audit.view", "tech.config",
   ],
   MANAGER: [
-    "orders.view", "orders.update", "orders.print", "orders.payment", "orders.refund", "stock.toggle",
+    "orders.view", "orders.update", "orders.print", "orders.payment", "orders.refund", "pos.sell", "stock.toggle",
     "menu.edit", "menu.restaurant", "promos.edit", "customers.view", "restaurant.settings",
     "accounting.view", "accounting.close",
   ],
-  EMPLOYEE: ["orders.view", "orders.update", "orders.print", "orders.payment", "stock.toggle"],
+  EMPLOYEE: ["orders.view", "orders.update", "orders.print", "orders.payment", "pos.sell", "stock.toggle"],
 };
 
 export interface Actor {

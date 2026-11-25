@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { loadOrder, type FullOrder } from "../orders/load";
 import { renderEscPos } from "./escpos";
-import { buildTicket, COLUMNS } from "./ticket";
+import { COLUMNS, jobTickets, type Legal } from "./ticket";
 import { localDate, localHHMM, localWeekday, minutesOf } from "../time";
 
 /**
@@ -35,7 +35,15 @@ export function peekJob(printerId: string) {
 }
 
 /** Réserve un ticket précis (ou le prochain) et renvoie la commande à imprimer. */
-export async function claimJob(printerId: string, jobId?: string): Promise<{ jobId: string; copies: number; order: FullOrder } | null> {
+/** Identité légale du site (ticket de caisse). */
+export async function legalInfo(): Promise<Legal> {
+  const s = await db.siteSettings.findUnique({ where: { id: 1 }, select: { brandName: true, companyName: true, siret: true, vatNumber: true } });
+  return { brandName: s?.brandName ?? "", companyName: s?.companyName ?? "", siret: s?.siret ?? "", vatNumber: s?.vatNumber ?? "" };
+}
+
+export interface ClaimedJob { jobId: string; copies: number; kind: string; legal: Legal; order: FullOrder }
+
+export async function claimJob(printerId: string, jobId?: string): Promise<ClaimedJob | null> {
   const job = jobId ? await db.printJob.findFirst({ where: { id: jobId, printerId, status: { in: ["PENDING", "SENT"] } } }) : await peekJob(printerId);
   if (!job) return null;
   const attempts = job.attempts + 1;
@@ -45,7 +53,7 @@ export async function claimJob(printerId: string, jobId?: string): Promise<{ job
   });
   const order = await loadOrder(job.orderId);
   if (!order) return null;
-  return { jobId: job.id, copies: job.copies, order };
+  return { jobId: job.id, copies: job.copies, kind: job.kind, legal: await legalInfo(), order };
 }
 
 export async function completeJob(printerId: string, jobId: string, ok: boolean, error = "") {
@@ -55,10 +63,18 @@ export async function completeJob(printerId: string, jobId: string, ok: boolean,
   });
 }
 
-/** Ticket ESC/POS d'une commande : un exemplaire par destinataire (cuisine, livreur / comptoir, client). */
-export function orderEscPos(order: FullOrder, paperWidth: keyof typeof COLUMNS, copies: number): Buffer {
-  const labels = copies > 1 ? ["CUISINE", order.mode === "DELIVERY" ? "LIVREUR" : "COMPTOIR", "CLIENT"].slice(0, copies) : [undefined];
-  return Buffer.concat(labels.map((l) => renderEscPos(buildTicket(order, l), COLUMNS[paperWidth])));
+/** Impulsion d'ouverture du tiroir-caisse (ESC p 0), branché sur l'imprimante. */
+export const DRAWER_KICK = Buffer.from([0x1b, 0x70, 0x00, 0x19, 0xfa]);
+
+/**
+ * Données ESC/POS d'un travail : ticket de préparation (un exemplaire par destinataire),
+ * ticket client de caisse (+ ouverture du tiroir si réglé en espèces), ou tiroir seul.
+ */
+export function orderEscPos(order: FullOrder, paperWidth: keyof typeof COLUMNS, copies: number, kind = "ORDER", legal?: Legal): Buffer {
+  const tickets = jobTickets(order, kind, copies, legal ?? { brandName: "", companyName: "", siret: "", vatNumber: "" });
+  const body = Buffer.concat(tickets.map((t) => renderEscPos(t, COLUMNS[paperWidth])));
+  const cash = kind === "RECEIPT" && order.payments.some((p) => p.method === "CASH" && p.status === "SUCCEEDED");
+  return kind === "DRAWER" || cash ? Buffer.concat([DRAWER_KICK, body]) : body;
 }
 
 /** « 192.168.1.87 » ou « 192.168.1.87:9100 » ou « box.example.fr:9101 » → hôte + port (9100 par défaut). */

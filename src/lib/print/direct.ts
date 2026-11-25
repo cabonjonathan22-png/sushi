@@ -2,7 +2,7 @@ import net from "node:net";
 import { db } from "../db";
 import { loadOrder } from "../orders/load";
 import { renderEscPos } from "./escpos";
-import { orderEscPos, parseAddress } from "./jobs";
+import { legalInfo, orderEscPos, parseAddress } from "./jobs";
 import { COLUMNS, testTicket } from "./ticket";
 
 /**
@@ -26,7 +26,7 @@ export async function submitDirect(payload: { printJobId: string }) {
   const order = await loadOrder(job.orderId);
   if (!order) return;
   try {
-    await sendRaw(job.printer.address, orderEscPos(order, job.printer.paperWidth, job.copies));
+    await sendRaw(job.printer.address, orderEscPos(order, job.printer.paperWidth, job.copies, job.kind, await legalInfo()));
   } catch (e) {
     await db.printJob.update({ where: { id: job.id }, data: { attempts: { increment: 1 }, lastError: (e as Error).message.slice(0, 300) } });
     throw e; // la file réessaie plus tard

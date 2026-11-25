@@ -1,6 +1,6 @@
 import { json } from "@/lib/http";
 import { claimJob, completeJob, peekJob, printerByToken } from "@/lib/print/jobs";
-import { buildTicket, COLUMNS, renderStarMarkup, renderText } from "@/lib/print/ticket";
+import { COLUMNS, jobTickets, renderStarMarkup, renderText } from "@/lib/print/ticket";
 
 /**
  * Star CloudPRNT (mC-Print3, TSP100IV, TSP650II avec interface CloudPRNT…).
@@ -25,8 +25,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
   const claimed = await claimJob(printer.id, url.searchParams.get("token") ?? undefined);
   if (!claimed) return new Response("", { status: 204 });
   const cols = COLUMNS[printer.paperWidth];
-  const labels = claimed.copies > 1 ? ["CUISINE", claimed.order.mode === "DELIVERY" ? "LIVREUR" : "COMPTOIR", "CLIENT"].slice(0, claimed.copies) : [undefined];
-  const tickets = labels.map((l) => buildTicket(claimed.order, l));
+  const tickets = jobTickets(claimed.order, claimed.kind, claimed.copies, claimed.legal);
   const type = url.searchParams.get("type") ?? "text/plain";
   const body = type === "text/vnd.star.markup"
     ? tickets.map((t) => renderStarMarkup(t, cols)).join("\n")
