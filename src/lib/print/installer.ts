@@ -14,7 +14,7 @@
  * pour rester de simples chaînes JavaScript.
  */
 
-export const AGENT_VERSION = "1.3";
+export const AGENT_VERSION = "1.4";
 
 const INSTALL = String.raw`
 $ErrorActionPreference = 'Stop'
@@ -39,6 +39,8 @@ function Write-AgentFiles([string]$dir) {
 # il redémarre tout seul avec l'ordinateur. Son n° et son mot de passe sont envoyés au back-office.
 function Install-RemoteAccess {
   $rd = Join-Path $env:ProgramFiles 'RustDesk\rustdesk.exe'
+  # RustDesk déjà installé par le technicien : on n'y touche pas, son mot de passe reste valable.
+  if ((Test-Path $rd) -and -not (Test-Path (Join-Path $env:ProgramData 'YaomaImpression\rustdesk-par-yaoma.txt'))) { return }
   if (-not (Test-Path $rd)) {
     $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/rustdesk/rustdesk/releases/latest' -UseBasicParsing -Headers @{ 'User-Agent' = 'yaoma-installer' }
     $asset = $release.assets | Where-Object { $_.name -match '^rustdesk-[0-9.]+-x86_64\.exe$' } | Select-Object -First 1
