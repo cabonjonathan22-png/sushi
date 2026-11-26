@@ -8,7 +8,8 @@ const eur = (c: number) => `${(c / 100).toFixed(2).replace(".", ",")} €`;
  */
 export function OffersStrip({ offers, onPick, href, title = "Offres du moment", cta = "Commander" }: {
   offers: CurrentOffer[];
-  onPick?: (productId: string) => void;
+  /** Ajoute au panier tous les produits de l'offre (variante prévue par l'offre comprise). */
+  onPick?: (items: { productId: string; variantId: string | null }[]) => void;
   href?: string;
   title?: string;
   cta?: string;
@@ -43,7 +44,8 @@ export function OffersStrip({ offers, onPick, href, title = "Offres du moment", 
                     ))}
                   </span>
                 )}
-                <span className="mt-1 block text-sm font-semibold text-brand-700">{o.when}</span>
+                <span className="mt-1 block text-sm font-semibold text-brand-700">{o.when}{o.today && o.when !== "Tous les jours" ? " — aujourd'hui !" : ""}</span>
+                {!o.today && o.items.length > 0 && <span className="block text-xs text-muted">Prix appliqué aux commandes prévues ce jour-là (choisissez le créneau à la validation).</span>}
                 {o.zones.length > 0 && <span className="block text-sm text-muted">En livraison à {o.zones.join(", ")} uniquement (prix appliqué à la validation).</span>}
                 {o.description && <span className="mt-2 block whitespace-pre-line text-sm text-muted">{o.description}</span>}
                 {(onPick || href) && first && <span className="mt-3 inline-block rounded-full bg-char px-4 py-2 text-sm font-bold text-paper">{cta}</span>}
@@ -53,7 +55,7 @@ export function OffersStrip({ offers, onPick, href, title = "Offres du moment", 
           return (
             <li key={o.id} className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-line">
               {onPick && first ? (
-                <button type="button" onClick={() => onPick(first)} className="block w-full text-start">{body}</button>
+                <button type="button" onClick={() => onPick(o.items.map((i) => ({ productId: i.productId, variantId: i.variantId })))} className="block w-full text-start">{body}</button>
               ) : href && first ? (
                 <a href={href} className="block">{body}</a>
               ) : body}

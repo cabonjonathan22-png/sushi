@@ -147,7 +147,20 @@ export function OrderMenu({
             {multiRestaurant && <a href="/commander?choisir=1" className="ms-2 text-sm font-semibold underline">{t("menu.change")}</a>}
           </p>
           {translated && <p className="mt-1 text-xs text-neutral-500">{t("menu.translated")}</p>}
-          <OffersStrip offers={offers} onPick={(id) => { const p = byId.get(id); if (p && !p.outOfStock && !restaurant.paused) quickAdd(p); }} cta="Ajouter" />
+          <OffersStrip offers={offers} cta="Ajouter" onPick={(items) => {
+            if (restaurant.paused) return;
+            // Produits sans choix obligatoire : ajoutés directement ; sinon la fiche s'ouvre pour choisir.
+            const added: string[] = [];
+            for (const it of items) {
+              const p = byId.get(it.productId);
+              if (!p || p.outOfStock) continue;
+              const needsChoice = p.optionGroups.some((g) => g.minSelect > 0) || (p.variants.length > 0 && !it.variantId);
+              if (needsChoice) { setOpen(p); continue; }
+              cart.add(p.id, it.variantId, [], 1);
+              added.push(p.name);
+            }
+            if (added.length) notify(t("menu.added", { name: added.join(", ") }));
+          }} />
           {restaurant.paused && (
             <p role="alert" className="mt-3 rounded-xl bg-red-50 p-3 font-semibold text-red-800">
               {restaurant.pausedUntil ? t("pause.banner", { until: pauseUntilText(new Date(restaurant.pausedUntil), t, locale, restaurant.timezone) }) : t("menu.paused")}

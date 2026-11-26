@@ -2,7 +2,7 @@ import "server-only";
 import type { CatalogProduct } from "./cart";
 import { db } from "./db";
 import { imageSources, type ImageFiles } from "./images";
-import { offerAppliesToZone, offerValidAt, offerWhen, toOfferRule, type OfferRule } from "./offer-rules";
+import { offerAppliesToZone, offerValidAt, offerVisibleAt, offerWhen, toOfferRule, type OfferRule } from "./offer-rules";
 
 /**
  * Menu d'un restaurant : catalogue commun + surcharges du restaurant
@@ -32,11 +32,13 @@ export interface CurrentOffer {
   description: string;
   when: string;
   /** Produits de l'offre : prix habituel et prix pendant l'offre. */
-  items: { productId: string; name: string; label: string; priceCents: number; regularPriceCents: number }[];
+  items: { productId: string; variantId: string | null; name: string; label: string; priceCents: number; regularPriceCents: number }[];
   /** Zones de livraison concernées (vide = partout). */
   zones: string[];
   image: { src: string; srcSet: string } | null;
   showOnHome: boolean;
+  /** Valable en ce moment (sinon annoncée : le prix s'appliquera au créneau prévu). */
+  today: boolean;
 }
 
 export interface MenuCategory {
@@ -179,7 +181,9 @@ export async function loadMenu(restaurantId: string, opts: { includeHidden?: boo
 export async function currentOffers(restaurantId: string, at = new Date()): Promise<CurrentOffer[]> {
   const r = await db.restaurant.findUnique({ where: { id: restaurantId }, select: { timezone: true } });
   const tz = r?.timezone ?? "Europe/Paris";
-  const offers = await validOffers(restaurantId, at);
+  // Offres annoncées (pas seulement celles valables à l'instant : « tous les mardis » s'affiche toute la semaine).
+  const offers = (await db.offer.findMany({ where: { active: true }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] }))
+    .map(toOfferRule).filter((o) => offerVisibleAt(o, at, restaurantId));
   if (!offers.length) return [];
   // Prix habituels (menu sans offre) pour afficher « au lieu de ».
   const regular = await loadMenu(restaurantId, { at, noOffers: true });
@@ -199,11 +203,12 @@ export async function currentOffers(restaurantId: string, at = new Date()): Prom
         if (!p) return [];
         const v = i.variantId ? p.variants.find((x) => x.id === i.variantId) : undefined;
         if (i.variantId && !v) return [];
-        return [{ productId: p.id, name: p.name, label: v?.label ?? "", priceCents: i.priceCents, regularPriceCents: v?.priceCents ?? p.priceCents }];
+        return [{ productId: p.id, variantId: v?.id ?? null, name: p.name, label: v?.label ?? "", priceCents: i.priceCents, regularPriceCents: v?.priceCents ?? p.priceCents }];
       });
       const first = items[0] ? byId.get(items[0].productId) : undefined;
       return {
         id: o.id, title: o.title, badge: o.badge, description: o.description, when: offerWhen(o, tz), items, showOnHome: o.showOnHome,
+        today: offerValidAt(o, at, restaurantId, tz),
         zones: o.zoneIds.flatMap((id) => zoneById.get(id)?.areas.map((a) => a.city) ?? []),
         image: o.imageId ? imageSources(imgs.get(o.imageId), 640) : (first?.imageLarge ?? null),
         _skip: o.items.length > 0 && items.length === 0,

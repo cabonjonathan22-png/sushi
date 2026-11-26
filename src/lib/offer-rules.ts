@@ -59,6 +59,19 @@ export function offerValidAt(o: OfferRule, at: Date, restaurantId: string, tz = 
   return true;
 }
 
+/**
+ * L'offre est-elle à annoncer sur le site ? Active, pas terminée, et commencée ou commençant dans les 30 jours.
+ * Les jours et horaires ne masquent pas l'annonce (« Tous les mardis » se lit toute la semaine) :
+ * le prix, lui, ne s'applique qu'aux commandes dont le créneau tombe pendant l'offre.
+ */
+export function offerVisibleAt(o: OfferRule, at: Date, restaurantId: string): boolean {
+  if (!o.active) return false;
+  if (o.restaurantIds.length && !o.restaurantIds.includes(restaurantId)) return false;
+  if (o.endsAt && at > o.endsAt) return false;
+  if (o.startsAt && o.startsAt.getTime() > at.getTime() + 30 * 24 * 3600_000) return false;
+  return true;
+}
+
 /** Offre réservée à certaines zones : seulement en livraison dans l'une d'elles. Sans zone : partout. */
 export function offerAppliesToZone(o: Pick<OfferRule, "zoneIds">, zoneId: string | null | undefined): boolean {
   return !o.zoneIds.length || (!!zoneId && o.zoneIds.includes(zoneId));
