@@ -55,6 +55,8 @@ export function Checkout({ restaurant, account, options = { requireEmail: true, 
   const [promoInput, setPromoInput] = useState("");
   const [promoCode, setPromoCode] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
+  /** Moyens choisis pour payer au retrait / à la livraison / sur place (plusieurs possibles). */
+  const [offline, setOffline] = useState<string[]>([]);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [saveAddress, setSaveAddress] = useState(true);
@@ -83,11 +85,16 @@ export function Checkout({ restaurant, account, options = { requireEmail: true, 
   const zone = mode === "DELIVERY" && cpOk && address.city ? findZone(restaurant.zones, address.postalCode, address.city) : null;
   const servedPostalCodes = [...new Set(restaurant.zones.flatMap((z) => z.areas.map((a) => a.postalCode)))];
   const cities = cpOk ? citiesForPostalCode(restaurant.zones, address.postalCode) : [];
-  const payMethods = restaurant.paymentMethods.filter((m) => m[mode] && (m.method !== "ONLINE_CARD" || restaurant.stripeEnabled));
+  // Paiement en ligne affiché mais désactivé pour le moment : seuls les moyens hors ligne se choisissent.
+  const payMethods = restaurant.paymentMethods.filter((m) => m[mode] && m.method !== "ONLINE_CARD");
 
   useEffect(() => {
-    if (!payMethods.some((m) => m.method === paymentMethod)) setPaymentMethod(payMethods[0]?.method ?? "");
-  }, [mode, payMethods, paymentMethod]);
+    // Moyens choisis restés valables pour ce mode ; le premier fait foi comme moyen principal.
+    const kept = offline.filter((x) => payMethods.some((m) => m.method === x));
+    if (kept.length !== offline.length) setOffline(kept);
+    const main = kept[0] ?? "";
+    if (main !== paymentMethod) setPaymentMethod(main);
+  }, [mode, payMethods, paymentMethod, offline]);
 
   // Créneaux (rechargés selon le mode et la zone : la livraison ajoute le temps de trajet).
   useEffect(() => {
@@ -161,7 +168,7 @@ export function Checkout({ restaurant, account, options = { requireEmail: true, 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         restaurantSlug: restaurant.slug, mode, slotStart: slot!.start, lines, customer,
-        address: mode === "DELIVERY" ? address : null, notes, paymentMethod,
+        address: mode === "DELIVERY" ? address : null, notes, paymentMethod, paymentMethods: offline,
         promoCode: promoCode || undefined, rewardId: (preview?.rewardApplied && rewardId) || undefined, ageConfirmed, acceptTerms, saveAddress,
         extrasDeclined: extrasDeclined && extrasInCart === 0,
       }),
@@ -410,17 +417,28 @@ export function Checkout({ restaurant, account, options = { requireEmail: true, 
 
         <section className="card p-5" aria-labelledby="s-pay">
           <h2 id="s-pay" className="text-3xl">{t("checkout.step4")}</h2>
+          <h3 className="mt-4 text-xl font-semibold">{mode === "DELIVERY" ? t("checkout.payTitleDelivery") : mode === "DINE_IN" ? t("checkout.payTitleDineIn") : t("checkout.payTitlePickup")}</h3>
+          <p className="text-sm text-neutral-600">{t("checkout.payMulti")}</p>
           {payMethods.length === 0 ? <p className="mt-2 text-red-800">{t("checkout.noPayment")}</p> : (
-            <div className="mt-3 grid gap-2" role="radiogroup" aria-label={t("checkout.paymentLabel")}>
-              {payMethods.map((m) => (
-                <label key={m.method} className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border-2 px-4 ${paymentMethod === m.method ? "border-brand-600 bg-brand-50" : "border-neutral-200"}`}>
-                  <input type="radio" name="pm" className="h-5 w-5 accent-brand-600" checked={paymentMethod === m.method} onChange={() => setPaymentMethod(m.method)} />
-                  <span className="font-semibold">{t(`pay.${m.method}`)}</span>
-                  <span className="ms-auto text-sm text-neutral-600">{m.method === "ONLINE_CARD" ? t("checkout.payNow") : mode === "DELIVERY" ? t("checkout.payOnDelivery") : t("checkout.payOnPickup")}</span>
-                </label>
-              ))}
+            <div className="mt-2 grid gap-2" role="group" aria-label={t("checkout.paymentLabel")}>
+              {payMethods.map((m) => {
+                const on = offline.includes(m.method);
+                return (
+                  <label key={m.method} className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border-2 px-4 ${on ? "border-brand-600 bg-brand-50" : "border-neutral-200"}`}>
+                    <input type="checkbox" className="h-5 w-5 accent-brand-600" checked={on}
+                      onChange={() => setOffline((xs) => (on ? xs.filter((x) => x !== m.method) : [...xs, m.method]))} />
+                    <span className="font-semibold">{t(`pay.${m.method}`)}</span>
+                  </label>
+                );
+              })}
             </div>
           )}
+          <h3 className="mt-5 text-xl font-semibold">{t("checkout.payTitleOnline")}</h3>
+          <div aria-disabled="true" className="mt-2 flex min-h-12 cursor-not-allowed items-center gap-3 rounded-xl border-2 border-dashed border-neutral-200 px-4 opacity-60">
+            <input type="checkbox" disabled className="h-5 w-5" aria-label={t("pay.ONLINE_CARD")} />
+            <span className="font-semibold">{t("pay.ONLINE_CARD")}</span>
+            <span className="ms-auto text-sm text-neutral-600">{t("checkout.soon")}</span>
+          </div>
         </section>
       </div>
 

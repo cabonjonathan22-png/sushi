@@ -70,13 +70,14 @@ export function buildTicket(o: FullOrder, copyLabel?: string): Ticket {
   if (o.loyaltyDiscountCents) L.push({ kind: "pair", left: `Fidélité ${o.loyaltyRewardName}`.trim(), right: `-${euros(o.loyaltyDiscountCents)}` });
   if (o.mode === "DELIVERY") L.push({ kind: "pair", left: "Livraison", right: o.deliveryFeeCents ? euros(o.deliveryFeeCents) : "offerte" });
   L.push({ kind: "pair", left: "TOTAL TTC", right: euros(o.totalCents), bold: true });
-  L.push({ kind: "text", text: PAYMENT_METHOD_LABELS[o.paymentMethod] });
+  const payLabel = (o.plannedPayments ?? []).length > 1 ? o.plannedPayments.map((m) => PAYMENT_METHOD_LABELS[m]).join(" + ") : PAYMENT_METHOD_LABELS[o.paymentMethod];
+  L.push({ kind: "text", text: payLabel });
   const paid = o.paymentStatus === "PAID" || o.paymentStatus === "PARTIALLY_REFUNDED";
   L.push({ kind: "big", text: paid ? "PAYÉ" : o.paymentStatus === "REFUNDED" ? "REMBOURSÉ" : "À ENCAISSER" });
   // Livraison non payée : le livreur voit le montant à encaisser et le moyen de paiement.
   if (o.mode === "DELIVERY" && !paid && o.paymentStatus !== "REFUNDED") {
     L.push({ kind: "big", text: euros(o.totalCents) });
-    L.push({ kind: "center", text: `Paiement : ${PAYMENT_METHOD_LABELS[o.paymentMethod]}` });
+    L.push({ kind: "center", text: `Paiement : ${payLabel}` });
   }
   if (o.lines.some((l) => l.isAlcohol)) L.push({ kind: "center", text: "Contient de l'alcool : vérifier 18 ans" });
   L.push({ kind: "center", text: o.reference });

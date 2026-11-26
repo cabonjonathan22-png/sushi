@@ -662,6 +662,8 @@ model Order {
 
   // Caisse (ventes au comptoir) : table, monnaie rendue, chaînage des tickets (inaltérabilité).
   tableLabel  String @default("")
+  /// Moyens de paiement prévus par le client (retrait / livraison / sur place), ex. titres-restaurant + espèces.
+  plannedPayments PaymentMethod[]
   changeCents Int    @default(0)
   /// Empreinte du ticket précédent de la caisse du restaurant, et de ce ticket (SHA-256).
   chainPrev   String @default("")

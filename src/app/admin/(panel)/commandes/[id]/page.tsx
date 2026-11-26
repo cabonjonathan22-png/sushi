@@ -90,7 +90,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
 
           <section className="card p-5">
             <h2 className="text-3xl">Paiement</h2>
-            <p className="mt-1">{PAYMENT_METHOD_LABELS[order.paymentMethod]} — <strong>{PAYMENT_STATUS_LABELS[order.paymentStatus]}</strong></p>
+            <p className="mt-1">{order.plannedPayments.length > 1 ? order.plannedPayments.map((m) => PAYMENT_METHOD_LABELS[m]).join(" + ") : PAYMENT_METHOD_LABELS[order.paymentMethod]} — <strong>{PAYMENT_STATUS_LABELS[order.paymentStatus]}</strong></p>
             <ul className="mt-2 text-sm text-neutral-700">
               {order.payments.map((p) => (
                 <li key={p.id}>{formatDateTime(p.createdAt)} · {PAYMENT_METHOD_LABELS[p.method]} · {euros(p.amountCents)} · {p.status}{p.failureReason && ` (${p.failureReason})`}</li>

@@ -47,6 +47,8 @@ export const CheckoutInput = z.object({
     .nullish(),
   notes: z.string().trim().max(500).default(""),
   paymentMethod: z.enum(["ONLINE_CARD", "CASH", "CARD_TERMINAL", "MEAL_VOUCHER_PAPER", "MEAL_VOUCHER_CARD"]),
+  /** Paiement au retrait / à la livraison / sur place en plusieurs moyens (ex. titres-restaurant + espèces). */
+  paymentMethods: z.array(z.enum(["CASH", "CARD_TERMINAL", "MEAL_VOUCHER_PAPER", "MEAL_VOUCHER_CARD"])).max(4).optional(),
   promoCode: z.string().trim().toUpperCase().max(40).optional(),
   /** Récompense de fidélité choisie (client connecté). */
   rewardId: z.string().trim().max(40).optional(),
@@ -131,6 +133,12 @@ export async function placeOrder(raw: unknown, ctx: { ip: string; customerId?: s
   const pm = restaurant.paymentMethods.find((m) => m.method === input.paymentMethod);
   const pmOk = pm && { PICKUP: pm.pickup, DELIVERY: pm.delivery, DINE_IN: pm.dineIn }[input.mode];
   if (!pmOk) return fail("Ce moyen de paiement n'est pas accepté pour ce mode.", "FORM");
+  // Moyens prévus (paiement hors ligne) : tous doivent être acceptés pour ce mode.
+  const planned = input.paymentMethod === "ONLINE_CARD" ? [] : [...new Set([input.paymentMethod, ...(input.paymentMethods ?? [])])];
+  for (const m of planned) {
+    const ok = restaurant.paymentMethods.find((x) => x.method === m);
+    if (!ok || !{ PICKUP: ok.pickup, DELIVERY: ok.delivery, DINE_IN: ok.dineIn }[input.mode]) return fail("Un des moyens de paiement choisis n'est pas accepté pour ce mode.", "FORM");
+  }
   const stripe = input.paymentMethod === "ONLINE_CARD" ? await stripeFor(restaurant.id) : null;
   if (input.paymentMethod === "ONLINE_CARD" && !stripe) return fail("Le paiement en ligne est momentanément indisponible.", "STRIPE");
 
@@ -213,6 +221,7 @@ export async function placeOrder(raw: unknown, ctx: { ip: string; customerId?: s
         acceptedAt: firstStatus === "ACCEPTED" || firstStatus === "PREPARING" ? now : null,
         paymentStatus: online ? "PENDING" : "UNPAID",
         paymentMethod: input.paymentMethod,
+        plannedPayments: planned,
         mode: input.mode,
         period: slot.period,
         slotStart: slot.start,
