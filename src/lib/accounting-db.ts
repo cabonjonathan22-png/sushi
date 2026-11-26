@@ -4,7 +4,8 @@ import { buildReport, type Grouping, type SaleRow } from "./accounting";
 import { canonicalJson } from "./audit";
 import { db } from "./db";
 import type { VatLine } from "./money";
-import { addDays, zonedTime } from "./time";
+import { onLoyaltyStatus } from "./loyalty";
+import { addDays, localDate, zonedTime } from "./time";
 
 /**
  * Commandes comptabilisées par CE système : l'historique importé de l'ancien site (WooCommerce)
@@ -47,7 +48,7 @@ const GENESIS = "0".repeat(64);
  * Clôture journalière : fige les totaux du jour (date de service), chaînés par empreinte
  * avec la clôture précédente du restaurant. Une clôture ne peut être ni refaite ni modifiée.
  */
-export async function closeDay(restaurantId: string, date: string, closedById: string) {
+export async function closeDay(restaurantId: string, date: string, closedById: string | null) {
   const { report } = await reportFor([restaurantId], date, date, "day");
   const pending = await db.order.count({
     where: { ...ACCOUNTED, restaurantId, status: { in: ["NEW", "ACCEPTED", "PREPARING", "READY", "OUT_FOR_DELIVERY"] }, slotStart: { gte: zonedTime(date, "00:00"), lt: zonedTime(addDays(date, 1), "00:00") } },
@@ -68,6 +69,41 @@ export async function closeDay(restaurantId: string, date: string, closedById: s
       data: { restaurantId, date, totals, ordersCount: report.orders, totalCents: report.ttc, previousHash, hash, closedById },
     });
   });
+}
+
+/**
+ * Clôture journalière automatique (tâche planifiée, chaque nuit) : pour chaque restaurant, clôture
+ * les journées passées pas encore clôturées (rattrapage limité à 62 jours). Les commandes du jour
+ * restées « en cours » sont d'abord passées « Terminées » (le service est fini), avec une trace.
+ */
+export async function autoCloseDays(now = new Date()): Promise<string[]> {
+  const done: string[] = [];
+  const restaurants = await db.restaurant.findMany({ where: { archivedAt: null }, select: { id: true, name: true, timezone: true } });
+  for (const r of restaurants) {
+    const yesterday = addDays(localDate(now, r.timezone), -1);
+    const last = await db.dailyClosure.findFirst({ where: { restaurantId: r.id }, orderBy: { date: "desc" }, select: { date: true } });
+    let day = last ? addDays(last.date, 1) : yesterday;
+    for (let n = 0; day <= yesterday && n < 62; n++, day = addDays(day, 1)) {
+      try {
+        const leftovers = await db.order.findMany({
+          where: { ...ACCOUNTED, restaurantId: r.id, status: { in: ["NEW", "ACCEPTED", "PREPARING", "READY", "OUT_FOR_DELIVERY"] }, slotStart: { gte: zonedTime(day, "00:00"), lt: zonedTime(addDays(day, 1), "00:00") } },
+        });
+        for (const o of leftovers) {
+          await db.$transaction(async (tx) => {
+            const updated = await tx.order.update({ where: { id: o.id }, data: { status: "COMPLETED", completedAt: new Date() } });
+            await tx.orderStatusEvent.create({ data: { orderId: o.id, from: o.status, to: "COMPLETED", actor: "Système", note: "Terminée automatiquement à la clôture du jour" } });
+            await onLoyaltyStatus(tx, updated, "COMPLETED");
+          });
+        }
+        await closeDay(r.id, day, null);
+        done.push(`${r.name} ${day}`);
+      } catch (e) {
+        console.error(`[clôture auto] ${r.name} ${day}`, e);
+        break; // on ne saute pas un jour : la chaîne reste continue
+      }
+    }
+  }
+  return done;
 }
 
 /** Vérifie la chaîne des clôtures d'un restaurant. */

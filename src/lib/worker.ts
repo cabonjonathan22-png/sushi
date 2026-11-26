@@ -61,6 +61,8 @@ export async function drainJobs(): Promise<number> {
 export async function maintenance(): Promise<void> {
   await Promise.allSettled([refreshBizPrintJobs(), cancelAbandonedPayments(), purgeSessions(), purgeRateLimits(), anonymizeInactiveCustomers(), expireInactivePoints()]);
   await drainJobs();
+  // Clôture journalière automatique des journées terminées (comptabilité).
+  await import("./accounting-db").then((m) => m.autoCloseDays()).then((d) => d.length && console.log("[maintenance] clôtures", d.join(", "))).catch((e) => console.error("[maintenance] clôture", e));
   // Traduction d'avance de la carte dans les langues proposées (dans la limite du quota du jour).
   await import("./translation-sources").then((m) => m.pretranslateAll()).catch((e) => console.error("[maintenance] traduction", e));
 }

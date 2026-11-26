@@ -39,6 +39,7 @@ export default async function ClosuresPage({ searchParams }: { searchParams: Pro
     <div className="mx-auto max-w-4xl space-y-6">
       <Link href="/admin/compta" className="text-sm font-semibold underline">← Comptabilité</Link>
       <h1 className="text-5xl">Clôtures — {current.name}</h1>
+      <p className="rounded-xl bg-sky-50 p-3 text-sky-900">Clôture <strong>automatique chaque nuit</strong> (vers 5 h) : la journée de la veille est clôturée toute seule ; les commandes restées « en cours » sont d&apos;abord passées « Terminées ». Vous pouvez toujours clôturer une journée à la main avant.</p>
       <p className="text-neutral-700">
         En fin de service, clôturez la journée : les totaux sont figés et chaînés aux clôtures précédentes (toute modification ultérieure serait détectée).
         Imprimez le récapitulatif pour vos archives ou votre comptable.
