@@ -114,6 +114,8 @@ export function PosScreen(props: {
   };
   const tap = (p: PosProduct) => {
     if (p.outOfStock) return;
+    // Plateau d'une offre : contenu figé, ajouté directement.
+    if (p.id.startsWith("offer_")) return add(p, null, p.optionGroups.flatMap((g) => g.options.map((o) => o.id)));
     if (p.variants.length > 1 || p.optionGroups.length) setPicking(p);
     else add(p, p.variants[0]?.id ?? null, []);
   };

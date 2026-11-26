@@ -97,6 +97,11 @@ export function OrderMenu({
   };
 
   const quickAdd = (p: ClientProduct) => {
+    // Plateau d'une offre : ajouté tel quel (contenu figé), sans fiche à composer.
+    if (p.id.startsWith("offer_")) {
+      cart.add(p.id, null, p.optionGroups.flatMap((g) => g.options.map((o) => o.id)), 1);
+      return notify(t("menu.added", { name: p.name }));
+    }
     if (p.variants.length > 0 || p.optionGroups.length > 0) return setOpen(p);
     cart.add(p.id, null, [], 1);
     notify(t("menu.added", { name: p.name }));
@@ -104,7 +109,7 @@ export function OrderMenu({
 
   const card = (p: ClientProduct) => (
     <li key={p.id} className={`card flex overflow-hidden ${p.outOfStock ? "opacity-55 grayscale" : ""}`}>
-      <button type="button" onClick={() => !p.outOfStock && setOpen(p)} disabled={p.outOfStock}
+      <button type="button" onClick={() => !p.outOfStock && (p.id.startsWith("offer_") ? quickAdd(p) : setOpen(p))} disabled={p.outOfStock}
         className="flex min-w-0 flex-1 gap-3 p-3 text-start disabled:cursor-not-allowed" aria-label={`${p.name}, ${money(p.fromPriceCents)}${p.outOfStock ? `, ${t("menu.outOfStock")}` : ""}`}>
         {p.image ? (
           <img src={p.image.src} srcSet={p.image.srcSet} sizes="112px" alt="" loading="lazy" width={112} height={112}
@@ -147,19 +152,12 @@ export function OrderMenu({
             {multiRestaurant && <a href="/commander?choisir=1" className="ms-2 text-sm font-semibold underline">{t("menu.change")}</a>}
           </p>
           {translated && <p className="mt-1 text-xs text-neutral-500">{t("menu.translated")}</p>}
-          <OffersStrip offers={offers} cta="Ajouter" onPick={(items) => {
-            if (restaurant.paused) return;
-            // Produits sans choix obligatoire : ajoutés directement ; sinon la fiche s'ouvre pour choisir.
-            const added: string[] = [];
-            for (const it of items) {
-              const p = byId.get(it.productId);
-              if (!p || p.outOfStock) continue;
-              const needsChoice = p.optionGroups.some((g) => g.minSelect > 0) || (p.variants.length > 0 && !it.variantId);
-              if (needsChoice) { setOpen(p); continue; }
-              cart.add(p.id, it.variantId, [], 1);
-              added.push(p.name);
-            }
-            if (added.length) notify(t("menu.added", { name: added.join(", ") }));
+          <OffersStrip offers={offers} cta="Ajouter au panier" onPick={(o) => {
+            // Plateau de l'offre : une seule ligne au panier, contenu figé (on ne compose pas l'offre).
+            const p = o.bundleId ? byId.get(o.bundleId) : undefined;
+            if (!p || p.outOfStock || restaurant.paused) return;
+            cart.add(p.id, null, o.optionIds, 1);
+            notify(t("menu.added", { name: p.name }));
           }} />
           {restaurant.paused && (
             <p role="alert" className="mt-3 rounded-xl bg-red-50 p-3 font-semibold text-red-800">

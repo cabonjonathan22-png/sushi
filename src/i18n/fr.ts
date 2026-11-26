@@ -239,6 +239,7 @@ export const fr = {
   "err.EMPTY": "Votre panier est vide.",
   "err.UNKNOWN_PRODUCT": "Un produit de votre panier n'existe plus.",
   "err.UNAVAILABLE": "« {name} » n'est plus disponible.",
+  "err.OFFER_UNAVAILABLE": "L'offre « {name} » n'est pas valable pour ce créneau (jour, horaire ou zone) : choisissez un créneau pendant l'offre ou retirez-la du panier.",
   "err.OUT_OF_STOCK": "« {name} » est en rupture de stock.",
   "err.VARIANT_REQUIRED": "Choisissez une option pour « {name} ».",
   "err.INVALID_OPTIONS": "Vérifiez les options de « {name} ».",

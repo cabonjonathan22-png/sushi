@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { offerAppliesToZone, offerValidAt, offerWhen, parseItems, type OfferRule } from "../offer-rules";
 
 const base: OfferRule = {
-  id: "o1", title: "Happy Box", badge: "Offre du mardi", description: "", items: [{ productId: "p1", variantId: null, priceCents: 2490 }], zoneIds: [],
+  id: "o1", title: "Happy Box", badge: "Offre du mardi", description: "", items: [{ productId: "p1", variantId: null, quantity: 1, priceCents: 2490 }], zoneIds: [],
   imageId: null, weekdays: [2], startsAt: null, endsAt: null, timeFrom: "", timeTo: "", restaurantIds: [], active: true, showOnHome: true, sortOrder: 0,
 };
 
@@ -33,6 +33,6 @@ describe("offres du moment", () => {
     expect(offerAppliesToZone({ zoneIds: ["z1"] }, null)).toBe(false);
     expect(offerAppliesToZone({ zoneIds: ["z1"] }, "z2")).toBe(false);
     expect(offerAppliesToZone({ zoneIds: ["z1"] }, "z1")).toBe(true);
-    expect(parseItems([{ productId: "p1", priceCents: 2490 }, { productId: "p2", priceCents: -1 }, "x"])).toEqual([{ productId: "p1", variantId: null, priceCents: 2490 }]);
+    expect(parseItems([{ productId: "p1", priceCents: 2490 }, { productId: "p2", priceCents: -1 }, "x"])).toEqual([{ productId: "p1", variantId: null, quantity: 1, priceCents: 2490 }]);
   });
 });

@@ -225,6 +225,7 @@ export const en: Dictionary = {
   "err.EMPTY": "Your cart is empty.",
   "err.UNKNOWN_PRODUCT": "An item in your cart no longer exists.",
   "err.UNAVAILABLE": "“{name}” is no longer available.",
+  "err.OFFER_UNAVAILABLE": "The “{name}” offer is not valid for this time slot (day, time or area): choose a slot during the offer or remove it from your basket.",
   "err.OUT_OF_STOCK": "“{name}” is sold out.",
   "err.VARIANT_REQUIRED": "Please choose an option for “{name}”.",
   "err.INVALID_OPTIONS": "Please check the options for “{name}”.",

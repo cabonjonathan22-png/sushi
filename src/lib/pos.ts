@@ -88,7 +88,7 @@ type Restaurant = NonNullable<Awaited<ReturnType<typeof db.restaurant.findUnique
 /** Prix d'un ticket de caisse, calculé comme sur le site (petits plus offerts, remise ventilée par TVA). */
 async function priceSale(restaurant: Restaurant, input: Pick<PosSaleInput, "mode" | "lines" | "discount">, now: Date) {
   const config = await readConfig();
-  const menu = await loadMenu(restaurant.id);
+  const menu = await loadMenu(restaurant.id, { at: now }); // offre valable seulement pendant sa période
   const period = localHHMM(now, restaurant.timezone) < "16:00" ? "LUNCH" : "DINNER";
 
   // Remise manuelle au comptoir : appliquée comme une remise de code promo (ventilée par taux de TVA).

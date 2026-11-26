@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 type Product = { id: string; name: string; priceCents: number; variants: { id: string; label: string; priceCents: number }[] };
-type Item = { productId: string; variantId: string | null; priceCents: number };
+type Item = { productId: string; variantId: string | null; quantity: number; priceCents: number };
 
 const eur = (c: number) => `${(c / 100).toFixed(2).replace(".", ",")} €`;
 const toEuros = (c: number) => (c / 100).toFixed(2).replace(".", ",");
@@ -18,20 +18,22 @@ const parse = (s: string) => {
  */
 export function OfferItemsEditor({ products, initial }: { products: Product[]; initial: Item[] }) {
   const byId = new Map(products.map((p) => [p.id, p]));
-  const [rows, setRows] = useState(() => initial.map((i) => ({ ...i, price: toEuros(i.priceCents) })));
+  const [rows, setRows] = useState(() => initial.map((i) => ({ ...i, quantity: i.quantity ?? 1, price: toEuros(i.priceCents) })));
   const [pick, setPick] = useState("");
   const [search, setSearch] = useState("");
 
-  const regular = (r: { productId: string; variantId: string | null }) => {
+  const unit = (r: { productId: string; variantId: string | null }) => {
     const p = byId.get(r.productId);
     return (r.variantId ? p?.variants.find((v) => v.id === r.variantId)?.priceCents : p?.priceCents) ?? 0;
   };
+  /** Prix actuel de la ligne : prix unitaire × quantité. */
+  const regular = (r: { productId: string; variantId: string | null; quantity: number }) => unit(r) * r.quantity;
   const add = () => {
     if (!pick) return;
     const [productId, variantId = null] = pick.split("|") as [string, string?];
     if (rows.some((r) => r.productId === productId && r.variantId === (variantId || null))) return;
-    const price = regular({ productId, variantId: variantId || null });
-    setRows((rs) => [...rs, { productId, variantId: variantId || null, priceCents: price, price: toEuros(price) }]);
+    const price = unit({ productId, variantId: variantId || null });
+    setRows((rs) => [...rs, { productId, variantId: variantId || null, quantity: 1, priceCents: price, price: toEuros(price) }]);
     setPick("");
   };
   const options = products
@@ -56,7 +58,7 @@ export function OfferItemsEditor({ products, initial }: { products: Product[]; i
   };
   const items = rows.flatMap((r) => {
     const c = parse(r.price);
-    return c === null ? [] : [{ productId: r.productId, variantId: r.variantId, priceCents: c }];
+    return c === null ? [] : [{ productId: r.productId, variantId: r.variantId, quantity: r.quantity, priceCents: c }];
   });
 
   return (
@@ -65,7 +67,7 @@ export function OfferItemsEditor({ products, initial }: { products: Product[]; i
       <input type="hidden" name="items" value={JSON.stringify(items)} />
       {rows.length > 0 && (
         <table className="mb-3 w-full text-sm">
-          <thead><tr className="text-left text-neutral-600"><th className="py-1">Produit</th><th className="py-1">Prix actuel</th><th className="py-1">Prix pendant l&apos;offre</th><th /></tr></thead>
+          <thead><tr className="text-left text-neutral-600"><th className="py-1">Produit</th><th className="py-1">Quantité</th><th className="py-1">Prix actuel</th><th className="py-1">Part dans l&apos;offre</th><th /></tr></thead>
           <tbody className="divide-y">
             {rows.map((r, i) => {
               const p = byId.get(r.productId);
@@ -74,7 +76,19 @@ export function OfferItemsEditor({ products, initial }: { products: Product[]; i
               return (
                 <tr key={`${r.productId}|${r.variantId ?? ""}`}>
                   <td className="py-2 pr-2 font-semibold">{p?.name ?? "Produit supprimé"}{v ? ` — ${v.label}` : ""}</td>
-                  <td className="py-2 pr-2">{eur(regular(r))}</td>
+                  <td className="py-2 pr-2">
+                    <input type="number" min={1} max={99} value={r.quantity} aria-label="Quantité dans l'offre" className="input w-20"
+                      onChange={(e) => {
+                        const q = Math.min(99, Math.max(1, Math.round(Number(e.target.value) || 1)));
+                        // La part de la ligne suit la quantité (même prix unitaire dans l'offre).
+                        setRows((rs) => rs.map((x, j) => {
+                          if (j !== i) return x;
+                          const c = parse(x.price);
+                          return { ...x, quantity: q, price: c === null ? x.price : toEuros(Math.round((c / x.quantity) * q)) };
+                        }));
+                      }} />
+                  </td>
+                  <td className="py-2 pr-2">{eur(regular(r))}{r.quantity > 1 && <span className="block text-xs text-neutral-500">{r.quantity} × {eur(unit(r))}</span>}</td>
                   <td className="py-2 pr-2">
                     <span className="flex items-center gap-1">
                       <input value={r.price} onChange={(e) => setRows((rs) => rs.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))}
@@ -90,6 +104,7 @@ export function OfferItemsEditor({ products, initial }: { products: Product[]; i
           <tfoot>
             <tr className="border-t-2 font-bold">
               <td className="py-2 pr-2">Total</td>
+              <td />
               <td className="py-2 pr-2">{eur(regularTotal)}</td>
               <td className="py-2 pr-2" colSpan={2}>
                 <span className="flex flex-wrap items-center gap-2">

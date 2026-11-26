@@ -139,6 +139,7 @@ export type CartErrorCode =
   | "EMPTY"
   | "UNKNOWN_PRODUCT"
   | "UNAVAILABLE"
+  | "OFFER_UNAVAILABLE"
   | "OUT_OF_STOCK"
   | "VARIANT_REQUIRED"
   | "INVALID_OPTIONS"
@@ -250,7 +251,9 @@ export function priceCart(input: CartLineInput[], catalog: Map<string, CatalogPr
       continue;
     }
     if (!p.active) {
-      errors.push({ code: "UNAVAILABLE", message: `« ${p.name} » n'est plus disponible.`, productId: p.id });
+      errors.push(p.id.startsWith("offer_")
+        ? { code: "OFFER_UNAVAILABLE", message: `L'offre « ${p.name} » n'est pas valable pour ce créneau (jour, horaire ou zone) : choisissez un créneau pendant l'offre ou retirez-la du panier.`, productId: p.id, params: { name: p.name } }
+        : { code: "UNAVAILABLE", message: `« ${p.name} » n'est plus disponible.`, productId: p.id });
       continue;
     }
     if (p.outOfStock) {

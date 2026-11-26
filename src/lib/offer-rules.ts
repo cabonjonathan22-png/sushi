@@ -5,7 +5,9 @@ import { localDate, localHHMM, localWeekday } from "./time";
 export interface OfferItem {
   productId: string;
   variantId: string | null;
-  /** Prix pendant l'offre (centimes TTC). */
+  /** Nombre de ce produit dans l'offre (ex. 3 sushis saumon). */
+  quantity: number;
+  /** Part du prix de l'offre pour cette ligne (quantité comprise), en centimes TTC. */
   priceCents: number;
 }
 
@@ -36,7 +38,8 @@ export function parseItems(raw: unknown): OfferItem[] {
   return raw.flatMap((x) => {
     const i = x as Partial<OfferItem>;
     return typeof i?.productId === "string" && Number.isInteger(i.priceCents) && (i.priceCents as number) >= 0
-      ? [{ productId: i.productId, variantId: typeof i.variantId === "string" && i.variantId ? i.variantId : null, priceCents: i.priceCents as number }]
+      ? [{ productId: i.productId, variantId: typeof i.variantId === "string" && i.variantId ? i.variantId : null,
+          quantity: Number.isInteger(i.quantity) && (i.quantity as number) >= 1 && (i.quantity as number) <= 99 ? (i.quantity as number) : 1, priceCents: i.priceCents as number }]
       : [];
   });
 }

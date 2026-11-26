@@ -32,9 +32,12 @@ export interface CurrentOffer {
   description: string;
   when: string;
   /** Produits de l'offre : prix habituel et prix pendant l'offre. */
-  items: { productId: string; variantId: string | null; name: string; label: string; priceCents: number; regularPriceCents: number }[];
+  items: { productId: string; variantId: string | null; quantity: number; name: string; label: string; priceCents: number; regularPriceCents: number }[];
   /** Zones de livraison concernées (vide = partout). */
   zones: string[];
+  /** Plateau à ajouter au panier (produit virtuel + contenu figé), ou null si simple annonce. */
+  bundleId: string | null;
+  optionIds: string[];
   image: { src: string; srcSet: string } | null;
   showOnHome: boolean;
   /** Valable en ce moment (sinon annoncée : le prix s'appliquera au créneau prévu). */
@@ -55,11 +58,11 @@ export interface Menu {
   products: MenuProduct[];
 }
 
-/** Offres en cours à ce moment dans ce restaurant (jours, période, horaires), toutes zones confondues. */
-async function validOffers(restaurantId: string, at: Date): Promise<OfferRule[]> {
+/** Offres annoncées dans ce restaurant, et si elles sont valables à ce moment (jours, période, horaires). */
+async function announcedOffers(restaurantId: string, at: Date): Promise<{ rule: OfferRule; validNow: boolean }[]> {
   const r = await db.restaurant.findUnique({ where: { id: restaurantId }, select: { timezone: true } });
   const all = (await db.offer.findMany({ where: { active: true }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] })).map(toOfferRule);
-  return all.filter((o) => offerValidAt(o, at, restaurantId, r?.timezone ?? "Europe/Paris"));
+  return all.filter((o) => offerVisibleAt(o, at, restaurantId)).map((rule) => ({ rule, validNow: offerValidAt(rule, at, restaurantId, r?.timezone ?? "Europe/Paris") }));
 }
 
 /**
@@ -67,8 +70,9 @@ async function validOffers(restaurantId: string, at: Date): Promise<OfferRule[]>
  * l'offre du mardi s'applique à une commande pour mardi, même passée la veille.
  */
 export async function loadMenu(restaurantId: string, opts: { includeHidden?: boolean; at?: Date; zoneId?: string | null; noOffers?: boolean } = {}): Promise<Menu> {
-  // Prix d'offre : en cours au moment `at` ; une offre réservée à des zones ne joue qu'en livraison dans l'une d'elles.
-  const offers = opts.includeHidden || opts.noOffers ? [] : (await validOffers(restaurantId, opts.at ?? new Date())).filter((o) => offerAppliesToZone(o, opts.zoneId));
+  // Offres annoncées → plateaux ; « validNow » : le créneau (ou maintenant) tombe pendant l'offre.
+  const offers = opts.includeHidden || opts.noOffers ? [] : await announcedOffers(restaurantId, opts.at ?? new Date());
+  const imagesForOffers = new Map((await db.image.findMany({ where: { id: { in: offers.flatMap((o) => (o.rule.imageId ? [o.rule.imageId] : [])) } } })).map((i) => [i.id, i.files as ImageFiles]));
   const [categories, products, overrides, variantOverrides] = await Promise.all([
     db.category.findMany({
       // Catégorie visible au catalogue ET non masquée dans ce restaurant.
@@ -109,19 +113,7 @@ export async function loadMenu(restaurantId: string, opts: { includeHidden?: boo
         };
       })
       .filter((v) => opts.includeHidden || v.active);
-    let priceCents = o?.priceCents ?? p.priceCents;
-    // Offres du moment : prix spécial sur le produit et/ou sur certaines de ses variantes (première offre trouvée).
-    let offerInfo: MenuProduct["offer"] = null;
-    for (const offer of offers) {
-      for (const item of offer.items.filter((i) => i.productId === p.id)) {
-        const v = item.variantId ? variants.find((x) => x.id === item.variantId) : null;
-        if (item.variantId && !v) continue;
-        offerInfo ??= { title: offer.title, badge: offer.badge, regularPriceCents: v ? v.priceCents : priceCents };
-        if (v) v.priceCents = item.priceCents;
-        else priceCents = item.priceCents;
-      }
-      if (offerInfo) break;
-    }
+    const priceCents = o?.priceCents ?? p.priceCents;
     const files = p.imageId ? images.get(p.imageId) : undefined;
     const firstCat = [...p.categories].sort((a, b) => a.category.sortOrder - b.category.sortOrder)[0];
     menuProducts.push({
@@ -158,7 +150,6 @@ export async function loadMenu(restaurantId: string, opts: { includeHidden?: boo
       badges: p.badges,
       allergens: p.allergens,
       categoryIds: p.categories.map((c) => c.categoryId),
-      offer: offerInfo,
     });
   }
 
@@ -166,15 +157,73 @@ export async function loadMenu(restaurantId: string, opts: { includeHidden?: boo
   const shownCategories = new Set(categories.map((c) => c.id));
   const orderable = opts.includeHidden ? menuProducts : menuProducts.filter((p) => p.categoryIds.some((id) => shownCategories.has(id)));
   const visibleIds = new Set(orderable.map((p) => p.id));
+  const bundles = opts.includeHidden || opts.noOffers ? [] : offerBundles(offers, byIdOf(menuProducts), imagesForOffers, opts);
+  // Les offres apparaissent aussi dans la carte, en première catégorie « Offres du moment ».
+  const offersCategory: MenuCategory[] = bundles.length
+    ? [{ id: "offers", slug: "offres", name: "Offres du moment", description: "", kind: "STANDARD", productIds: bundles.map((b) => b.id) }]
+    : [];
   return {
-    categories: categories
+    categories: [...offersCategory, ...categories
       .map((c) => ({
         id: c.id, slug: c.slug, name: c.name, description: c.description, kind: c.kind,
         productIds: c.products.map((x) => x.productId).filter((id) => visibleIds.has(id)),
       }))
-      .filter((c) => opts.includeHidden || c.productIds.length > 0),
-    products: orderable,
+      .filter((c) => opts.includeHidden || c.productIds.length > 0)],
+    products: [...orderable, ...bundles],
   };
+}
+
+const byIdOf = (list: MenuProduct[]) => new Map(list.map((p) => [p.id, p]));
+
+/** Identifiant du « plateau » d'une offre dans le panier (produit virtuel). */
+export const offerProductId = (offerId: string) => `offer_${offerId}`;
+
+/**
+ * Chaque offre avec des produits devient un plateau : une ligne de commande « Happy Box » au prix global,
+ * dont le contenu (options figées, à 0 €) s'imprime sur le ticket. Les produits seuls gardent leur prix.
+ * Disponible : à l'affichage (sans `at`), dès que l'offre est annoncée ; à la commande, seulement si le
+ * créneau tombe pendant l'offre (et dans une de ses zones si elle en a).
+ */
+function offerBundles(
+  offers: { rule: OfferRule; validNow: boolean }[],
+  products: Map<string, MenuProduct>,
+  images: Map<string, ImageFiles>,
+  opts: { at?: Date; zoneId?: string | null },
+): MenuProduct[] {
+  return offers.flatMap(({ rule: o, validNow }) => {
+    const parts = o.items.flatMap((i) => {
+      const p = products.get(i.productId);
+      if (!p) return [];
+      const v = i.variantId ? p.variants.find((x) => x.id === i.variantId) : undefined;
+      if (i.variantId && !v) return [];
+      return [{ p, v, quantity: i.quantity, priceCents: i.priceCents }];
+    });
+    if (!parts.length || parts.length !== o.items.length) return [];
+    const total = parts.reduce((a, x) => a + x.priceCents, 0);
+    // Taux de TVA : celui des produits (le plus représenté en valeur si les taux diffèrent).
+    const byRate = new Map<number, number>();
+    for (const x of parts) byRate.set(x.p.vatRate, (byRate.get(x.p.vatRate) ?? 0) + x.priceCents);
+    const vatRate = [...byRate.entries()].sort((a, b) => b[1] - a[1])[0]![0];
+    const zoneOk = opts.zoneId === undefined || offerAppliesToZone(o, opts.zoneId);
+    const active = (opts.at ? validNow : true) && zoneOk;
+    const files = o.imageId ? images.get(o.imageId) : undefined;
+    const first = parts[0]!.p;
+    const content = parts.map((x) => `${x.quantity > 1 ? `${x.quantity} × ` : ""}${x.p.name}${x.v ? ` (${x.v.label})` : ""}`);
+    const gid = `${offerProductId(o.id)}_g`;
+    return [{
+      id: offerProductId(o.id), slug: offerProductId(o.id), name: o.title, shortDescription: content.join(", "), description: o.description,
+      priceCents: total, fromPriceCents: total, vatRate, active, outOfStock: parts.some((x) => x.p.outOfStock || x.v?.outOfStock),
+      isAlcohol: parts.some((x) => x.p.isAlcohol), maxQuantity: null,
+      availablePickup: true, availableDelivery: true, availableDineIn: true, categoryName: "Offres", isExtra: false,
+      availableLunch: true, availableDinner: true, includedExtras: parts.reduce((a, x) => a + (x.p.includedExtras ?? 0), 0),
+      variants: [],
+      // Contenu du plateau : options obligatoires et figées (toutes cochées, 0 €).
+      optionGroups: [{ id: gid, name: "Contenu", minSelect: parts.length, maxSelect: parts.length,
+        options: content.map((name, i) => ({ id: `${gid}${i}`, name, priceDeltaCents: 0, active: true })) }],
+      image: files ? imageSources(files, 320) : first.image, imageLarge: files ? imageSources(files, 640) : first.imageLarge,
+      badges: [], allergens: [...new Set(parts.flatMap((x) => x.p.allergens))], categoryIds: [],
+    }];
+  });
 }
 
 /** Offres affichées sur le site en ce moment, avec leur prix et leur visuel. */
@@ -203,11 +252,13 @@ export async function currentOffers(restaurantId: string, at = new Date()): Prom
         if (!p) return [];
         const v = i.variantId ? p.variants.find((x) => x.id === i.variantId) : undefined;
         if (i.variantId && !v) return [];
-        return [{ productId: p.id, variantId: v?.id ?? null, name: p.name, label: v?.label ?? "", priceCents: i.priceCents, regularPriceCents: v?.priceCents ?? p.priceCents }];
+        return [{ productId: p.id, variantId: v?.id ?? null, quantity: i.quantity, name: p.name, label: v?.label ?? "", priceCents: i.priceCents, regularPriceCents: (v?.priceCents ?? p.priceCents) * i.quantity }];
       });
       const first = items[0] ? byId.get(items[0].productId) : undefined;
       return {
         id: o.id, title: o.title, badge: o.badge, description: o.description, when: offerWhen(o, tz), items, showOnHome: o.showOnHome,
+        bundleId: items.length && items.length === o.items.length ? offerProductId(o.id) : null,
+        optionIds: items.map((_, i) => `${offerProductId(o.id)}_g${i}`),
         today: offerValidAt(o, at, restaurantId, tz),
         zones: o.zoneIds.flatMap((id) => zoneById.get(id)?.areas.map((a) => a.city) ?? []),
         image: o.imageId ? imageSources(imgs.get(o.imageId), 640) : (first?.imageLarge ?? null),
