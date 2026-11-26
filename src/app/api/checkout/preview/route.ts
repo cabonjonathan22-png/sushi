@@ -13,6 +13,8 @@ const Input = z.object({
   restaurantSlug: z.string().max(80),
   mode: z.enum(["PICKUP", "DELIVERY", "DINE_IN"]),
   period: z.enum(["LUNCH", "DINNER"]),
+  /** Début du créneau choisi : l'offre du jour du créneau s'applique (ex. offre du mardi). */
+  slotStart: z.string().datetime().optional(),
   zoneId: z.string().max(40).nullish(),
   promoCode: z.string().trim().toUpperCase().max(40).optional(),
   rewardId: z.string().trim().max(40).optional(),
@@ -42,7 +44,7 @@ export async function POST(req: Request) {
   const rewards = settings.enabled ? await activeRewards() : [];
   const chosen = customer && input.rewardId ? rewards.find((x) => x.id === input.rewardId) ?? null : null;
 
-  const catalog = catalogMap(await loadMenu(r.id));
+  const catalog = catalogMap(await loadMenu(r.id, { at: input.slotStart ? new Date(input.slotStart) : undefined }));
   const ctx = {
     restaurantId: r.id, mode: input.mode, period: input.period, zone, pickupMinimumCents: r.pickupMinimumCents,
     noAlcoholDelivery: r.noAlcoholDelivery, promo, now: new Date(), pointsBalance: balance, extrasRule: extras,

@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { BadgeDef } from "@/lib/config-schema";
 import { BadgeChip } from "../site/BadgeChip";
+import { OffersStrip } from "../site/OffersStrip";
+import type { CurrentOffer } from "@/lib/menu";
 import { useI18n } from "@/i18n/client";
 import { pauseUntilText } from "@/lib/pause";
 import { money } from "@/lib/money";
@@ -23,7 +25,9 @@ export function OrderMenu({
   searchExamples = "",
   extrasHint = "",
   translated = false,
+  offers = [],
 }: {
+  offers?: CurrentOffer[];
   badges: BadgeDef[];
   searchExamples?: string;
   extrasHint?: string;
@@ -119,6 +123,9 @@ export function OrderMenu({
           {p.shortDescription && <span className="mt-1 line-clamp-2 text-sm text-muted">{p.shortDescription.replace(/\n/g, ", ")}</span>}
           <span className="mt-auto pt-1 font-semibold">
             {p.outOfStock ? <span className="text-red-700">{t("menu.outOfStock")}</span> : p.variants.length > 1 ? t("menu.from", { price: money(p.fromPriceCents) }) : money(p.fromPriceCents)}
+            {!p.outOfStock && p.offer && p.offer.regularPriceCents > p.fromPriceCents && (
+              <> <s className="text-sm font-normal text-muted">{money(p.offer.regularPriceCents)}</s> <span className="rounded bg-brand-600 px-1.5 py-0.5 text-xs font-bold text-white">{p.offer.badge || p.offer.title}</span></>
+            )}
           </span>
         </span>
       </button>
@@ -140,6 +147,7 @@ export function OrderMenu({
             {multiRestaurant && <a href="/commander?choisir=1" className="ms-2 text-sm font-semibold underline">{t("menu.change")}</a>}
           </p>
           {translated && <p className="mt-1 text-xs text-neutral-500">{t("menu.translated")}</p>}
+          <OffersStrip offers={offers} onPick={(id) => { const p = byId.get(id); if (p && !p.outOfStock && !restaurant.paused) quickAdd(p); }} cta="Ajouter" />
           {restaurant.paused && (
             <p role="alert" className="mt-3 rounded-xl bg-red-50 p-3 font-semibold text-red-800">
               {restaurant.pausedUntil ? t("pause.banner", { until: pauseUntilText(new Date(restaurant.pausedUntil), t, locale, restaurant.timezone) }) : t("menu.paused")}

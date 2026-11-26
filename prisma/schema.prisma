@@ -892,3 +892,33 @@ model LoyaltyTransaction {
   @@index([customerId, createdAt])
   @@index([orderId])
 }
+
+/// Offre du moment (« Happy Box à 24,90 € le mardi », menu de Noël…) : prix spécial sur un produit
+/// et/ou mise en avant, selon les jours, une période et une plage horaire. Activable / désactivable.
+model Offer {
+  id            String    @id @default(cuid())
+  title         String
+  /// Petit bandeau au-dessus du titre, ex. « Offre du mardi ».
+  badge         String    @default("")
+  description   String    @default("")
+  productId     String?
+  variantId     String?
+  /// Prix pendant l'offre (centimes TTC). Vide = simple mise en avant, sans changement de prix.
+  priceCents    Int?
+  /// Affiche de l'offre (sinon la photo du produit).
+  imageId       String?
+  /// Jours de la semaine (0 = dimanche … 6 = samedi). Vide = tous les jours.
+  weekdays      Int[]
+  startsAt      DateTime?
+  endsAt        DateTime?
+  /// Plage horaire « HH:MM » (vide = toute la journée).
+  timeFrom      String    @default("")
+  timeTo        String    @default("")
+  /// Restaurants concernés (vide = tous).
+  restaurantIds String[]
+  active        Boolean   @default(true)
+  showOnHome    Boolean   @default(true)
+  sortOrder     Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}

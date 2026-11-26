@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { IconArrow, IconBag, IconCalendar, IconClock, IconFlame, IconLeaf, IconPin, IconScooter, IconShield, IconTable } from "@/components/site/icons";
+import { OffersStrip } from "@/components/site/OffersStrip";
 import { ProductCard } from "@/components/site/ProductCard";
+import { currentOffers } from "@/lib/menu";
 import { CtaBand, FaqList, SectionHeading } from "@/components/site/Sections";
 import { hoursSummary, telHref } from "@/components/site/SiteChrome";
 import { translateTexts } from "@/i18n/content";
@@ -38,6 +40,7 @@ export default async function HomePage() {
     : "";
   const showcase = main ? await getShowcase(main.id, locale, defaultLocale) : { featured: [], categories: [] };
   const orderHref = main && all.length === 1 ? `/commander/${main.slug}` : "/commander";
+  const offers = main ? (await currentOffers(main.id)).filter((o) => o.showOnHome) : [];
 
   const services = [
     { key: "PICKUP", icon: IconBag, title: t("home.pickup"), text: t("home.pickupText"), href: "/commander" },
@@ -126,6 +129,12 @@ export default async function HomePage() {
       </section>
 
       {/* Incontournables */}
+      {offers.length > 0 && main && (
+        <div className="wrap pt-10">
+          <OffersStrip offers={offers} href={`/commander/${main.slug}`} />
+        </div>
+      )}
+
       {showcase.featured.length > 0 && main && (
         <section className="wrap section-y" aria-labelledby="featured">
           <SectionHeading id="featured" eyebrow={t("home.featuredEyebrow")} title={t("home.featuredTitle")} text={t("home.featuredText")}

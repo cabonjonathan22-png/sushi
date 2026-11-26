@@ -118,11 +118,11 @@ export function Checkout({ restaurant, account, options = { requireEmail: true, 
       fetch("/api/checkout/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ restaurantSlug: restaurant.slug, mode, period: slot?.period ?? "LUNCH", zoneId: zone?.id ?? null, promoCode: promoCode || undefined, rewardId: rewardId || undefined, lines }),
+        body: JSON.stringify({ restaurantSlug: restaurant.slug, mode, period: slot?.period ?? "LUNCH", slotStart: slot?.start ? new Date(slot.start).toISOString() : undefined, zoneId: zone?.id ?? null, promoCode: promoCode || undefined, rewardId: rewardId || undefined, lines }),
       }).then((r) => r.json()).then(setPreview).catch(() => {});
     }, 250);
     return () => clearTimeout(timer);
-  }, [lines, mode, slot?.period, zone?.id, promoCode, rewardId, restaurant.slug]);
+  }, [lines, mode, slot?.period, slot?.start, zone?.id, promoCode, rewardId, restaurant.slug]);
 
   if (!mounted) return <p className="px-4 py-16 text-center text-neutral-600">{t("checkout.loading")}</p>;
   if (!cart.items.length && !payment) {

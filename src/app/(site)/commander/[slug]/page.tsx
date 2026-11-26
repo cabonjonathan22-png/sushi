@@ -4,7 +4,7 @@ import { OrderMenu } from "@/components/order/OrderMenu";
 import { translateMenu } from "@/i18n/content";
 import { getI18n } from "@/i18n/server";
 import { getConfig } from "@/lib/config";
-import { loadMenu } from "@/lib/menu";
+import { currentOffers, loadMenu } from "@/lib/menu";
 import { getPublicRestaurant, getSiteSettings, listRestaurants } from "@/lib/restaurants";
 import { appUrl, JsonLd } from "@/lib/seo";
 
@@ -27,7 +27,7 @@ export default async function OrderPage({ params }: Props) {
   const { slug } = await params;
   const restaurant = await getPublicRestaurant(slug);
   if (!restaurant) notFound();
-  const [original, settings, all, config, { locale, defaultLocale }] = await Promise.all([loadMenu(restaurant.id), getSiteSettings(), listRestaurants(), getConfig(), getI18n()]);
+  const [original, settings, all, config, { locale, defaultLocale }, offers] = await Promise.all([loadMenu(restaurant.id), getSiteSettings(), listRestaurants(), getConfig(), getI18n(), currentOffers(restaurant.id)]);
   // Menu dans la langue du visiteur (traduction automatique mise en cache, corrigeable).
   const { menu, translated } = locale === defaultLocale ? { menu: original, translated: false } : await translateMenu(original, locale);
   const { stripePublishableKey: _pk, ...publicRestaurant } = restaurant;
@@ -60,7 +60,7 @@ export default async function OrderPage({ params }: Props) {
     <>
       <JsonLd data={jsonLd} />
       <OrderMenu restaurant={publicRestaurant} categories={menu.categories} products={menu.products} extrasLabel={settings.extrasLabel} multiRestaurant={all.length > 1} badges={config.catalog.badges}
-        searchExamples={config.site.searchPlaceholder} extrasHint={config.site.extrasHint} translated={translated} />
+        searchExamples={config.site.searchPlaceholder} extrasHint={config.site.extrasHint} translated={translated} offers={offers} />
     </>
   );
 }

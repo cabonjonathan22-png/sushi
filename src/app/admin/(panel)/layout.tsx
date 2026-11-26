@@ -19,6 +19,7 @@ const NAV: { href: string; label: string; perm?: Permission; icon: string }[] = 
   { href: "/admin/clients", label: "Clients", perm: "customers.view", icon: "👤" },
   { href: "/admin/cuisine", label: "Écran cuisine", perm: "orders.view", icon: "👨‍🍳" },
   { href: "/admin/menu", label: "Menu & ruptures", perm: "stock.toggle", icon: "📋" },
+  { href: "/admin/offres", label: "Offres", perm: "promos.edit", icon: "🎁" },
   { href: "/admin/promos", label: "Codes promo", perm: "promos.edit", icon: "🏷️" },
   { href: "/admin/fidelite/scanner", label: "Carte fidélité (scanner)", perm: "orders.payment", icon: "📷" },
   { href: "/admin/fidelite", label: "Fidélité", perm: "promos.edit", icon: "⭐" },
