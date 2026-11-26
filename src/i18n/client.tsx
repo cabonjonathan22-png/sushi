@@ -41,6 +41,8 @@ export function useI18n(): I18n {
 
 /** Libellé d'une erreur renvoyée par le serveur (code + paramètres), dans la langue du client. */
 export function errorText(t: I18n["t"], e: { code?: string; message: string; params?: Record<string, string | number> }): string {
+  // Erreur de formulaire : le message du serveur dit précisément quoi corriger (champ, moyen de paiement…).
+  if (e.code === "FORM" && e.message) return e.message;
   const key = `err.${e.code}` as MessageKey;
   const s = t(key, e.params);
   return s === key ? e.message : s;
