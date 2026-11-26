@@ -21,9 +21,9 @@ export function useLiveOrders(restaurantId: string, opts: { done?: number; onNew
       return;
     }
     const data = (await res.json()) as { orders: BoardOrder[] };
-    // Nouvelle commande = jamais vue sur cet écran, « Nouvelle » ou acceptée automatiquement.
+    // Nouvelle commande = jamais vue sur cet écran, « Nouvelle » ou acceptée automatiquement (« En préparation » compris).
     if (known.current) {
-      for (const o of data.orders) if ((o.status === "NEW" || o.status === "ACCEPTED") && !known.current.has(o.id)) onNew.current?.(o);
+      for (const o of data.orders) if (["NEW", "ACCEPTED", "PREPARING"].includes(o.status) && !known.current.has(o.id)) onNew.current?.(o);
     }
     known.current = new Set(data.orders.map((o) => o.id));
     setOrders(data.orders);

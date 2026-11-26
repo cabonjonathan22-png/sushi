@@ -6,6 +6,7 @@ import { can, ROLE_LABELS, type Permission } from "@/lib/permissions";
 import { getSiteSettings } from "@/lib/restaurants";
 import { logoutAction } from "../(auth)/actions";
 import { switchRestaurantAction } from "./actions";
+import { NewOrderAlert } from "@/components/admin/NewOrderAlert";
 
 export const metadata: Metadata = { title: { default: "Back-office", template: "%s · Back-office" }, robots: { index: false, follow: false }, manifest: "/admin/app.webmanifest" };
 export const dynamic = "force-dynamic";
@@ -98,6 +99,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         )}
         {children}
       </main>
+      {current && can(staff.actor, "orders.view", current.id) && <NewOrderAlert restaurantId={current.id} />}
     </div>
   );
 }
