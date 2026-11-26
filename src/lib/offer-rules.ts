@@ -2,14 +2,20 @@ import { localDate, localHHMM, localWeekday } from "./time";
 
 /** Règles pures des offres du moment (testables). */
 
+export interface OfferItem {
+  productId: string;
+  variantId: string | null;
+  /** Prix pendant l'offre (centimes TTC). */
+  priceCents: number;
+}
+
 export interface OfferRule {
   id: string;
   title: string;
   badge: string;
   description: string;
-  productId: string | null;
-  variantId: string | null;
-  priceCents: number | null;
+  items: OfferItem[];
+  zoneIds: string[];
   imageId: string | null;
   weekdays: number[];
   startsAt: Date | null;
@@ -24,7 +30,23 @@ export interface OfferRule {
 
 export const WEEKDAY_LABELS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"] as const;
 
-/** L'offre s'applique-t-elle à ce moment, dans ce restaurant ? (jours, période, horaires — heure du restaurant) */
+/** Lignes d'offre lues depuis la base (JSON), nettoyées. */
+export function parseItems(raw: unknown): OfferItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((x) => {
+    const i = x as Partial<OfferItem>;
+    return typeof i?.productId === "string" && Number.isInteger(i.priceCents) && (i.priceCents as number) >= 0
+      ? [{ productId: i.productId, variantId: typeof i.variantId === "string" && i.variantId ? i.variantId : null, priceCents: i.priceCents as number }]
+      : [];
+  });
+}
+
+/** Ligne de la base → règle d'offre. */
+export function toOfferRule<T extends Omit<OfferRule, "items"> & { items: unknown }>(row: T): OfferRule {
+  return { ...row, items: parseItems(row.items), zoneIds: row.zoneIds ?? [] };
+}
+
+/** L'offre est-elle en cours à ce moment, dans ce restaurant ? (jours, période, horaires — heure du restaurant) */
 export function offerValidAt(o: OfferRule, at: Date, restaurantId: string, tz = "Europe/Paris"): boolean {
   if (!o.active) return false;
   if (o.restaurantIds.length && !o.restaurantIds.includes(restaurantId)) return false;
@@ -37,7 +59,12 @@ export function offerValidAt(o: OfferRule, at: Date, restaurantId: string, tz = 
   return true;
 }
 
-/** « Tous les mardis », « du 20/12 au 31/12 », « de 11:00 à 14:00 » : quand l'offre s'applique, en clair. */
+/** Offre réservée à certaines zones : seulement en livraison dans l'une d'elles. Sans zone : partout. */
+export function offerAppliesToZone(o: Pick<OfferRule, "zoneIds">, zoneId: string | null | undefined): boolean {
+  return !o.zoneIds.length || (!!zoneId && o.zoneIds.includes(zoneId));
+}
+
+/** « Tous les mardis », « du 20/12 au 31/12 », « de 11h00 à 14h00 » : quand l'offre s'applique, en clair. */
 export function offerWhen(o: Pick<OfferRule, "weekdays" | "startsAt" | "endsAt" | "timeFrom" | "timeTo">, tz = "Europe/Paris"): string {
   const parts: string[] = [];
   if (o.weekdays.length && o.weekdays.length < 7) {

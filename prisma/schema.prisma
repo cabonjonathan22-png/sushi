@@ -901,10 +901,10 @@ model Offer {
   /// Petit bandeau au-dessus du titre, ex. « Offre du mardi ».
   badge         String    @default("")
   description   String    @default("")
-  productId     String?
-  variantId     String?
-  /// Prix pendant l'offre (centimes TTC). Vide = simple mise en avant, sans changement de prix.
-  priceCents    Int?
+  /// Produits de l'offre et leur prix pendant l'offre : [{ productId, variantId, priceCents }] (vide = simple annonce).
+  items         Json      @default("[]")
+  /// Zones de livraison où l'offre s'applique (vide = partout, tous modes ; sinon livraison dans ces zones seulement).
+  zoneIds       String[]
   /// Affiche de l'offre (sinon la photo du produit).
   imageId       String?
   /// Jours de la semaine (0 = dimanche … 6 = samedi). Vide = tous les jours.

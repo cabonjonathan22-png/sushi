@@ -1,10 +1,12 @@
 import { revalidatePath } from "next/cache";
 import { ActionForm, SubmitButton } from "@/components/admin/forms";
+import { OfferItemsEditor } from "@/components/admin/OfferItemsEditor";
+import { loadMenu } from "@/lib/menu";
 import { adminContext, authorize, logAction } from "@/lib/admin";
 import { db } from "@/lib/db";
 import { imageSources, storeProductImage, type ImageFiles } from "@/lib/images";
-import { euros, parseEuros } from "@/lib/money";
-import { offerWhen, WEEKDAY_LABELS } from "@/lib/offer-rules";
+import { euros } from "@/lib/money";
+import { offerWhen, parseItems, WEEKDAY_LABELS } from "@/lib/offer-rules";
 import { localDate, zonedTime } from "@/lib/time";
 
 export const metadata = { title: "Offres" };
@@ -19,12 +21,13 @@ async function saveOffer(_: Result, form: FormData): Promise<Result> {
   const id = String(form.get("id") ?? "");
   const title = String(form.get("title") ?? "").trim().slice(0, 120);
   if (!title) return { error: "Donnez un titre à l'offre (ex. « Happy Box »)." };
-  const productId = String(form.get("productId") ?? "") || null;
-  const variantId = productId ? String(form.get("variantId") ?? "") || null : null;
-  const priceRaw = String(form.get("price") ?? "").trim();
-  const priceCents = priceRaw ? parseEuros(priceRaw) : null;
-  if (priceRaw && (priceCents === null || priceCents < 0)) return { error: "Prix de l'offre invalide." };
-  if (priceCents !== null && !productId) return { error: "Un prix spécial s'applique à un produit : choisissez le produit." };
+  let items;
+  try {
+    items = parseItems(JSON.parse(String(form.get("items") ?? "[]")));
+  } catch {
+    return { error: "Liste des produits illisible : rechargez la page." };
+  }
+  if (items.length > 100) return { error: "100 produits maximum par offre." };
   const date = (k: string, end: boolean) => {
     const v = String(form.get(k) ?? "");
     return /^\d{4}-\d{2}-\d{2}$/.test(v) ? zonedTime(v, end ? "23:59" : "00:00") : null;
@@ -43,7 +46,7 @@ async function saveOffer(_: Result, form: FormData): Promise<Result> {
 
   const data = {
     title, badge: String(form.get("badge") ?? "").trim().slice(0, 60), description: String(form.get("description") ?? "").trim().slice(0, 1000),
-    productId, variantId, priceCents, weekdays, startsAt: date("startsAt", false), endsAt: date("endsAt", true), timeFrom, timeTo,
+    items: items as unknown as object, zoneIds: form.getAll("zoneIds").map(String), weekdays, startsAt: date("startsAt", false), endsAt: date("endsAt", true), timeFrom, timeTo,
     restaurantIds: form.getAll("restaurantIds").map(String), active: form.get("active") === "on", showOnHome: form.get("showOnHome") === "on",
     sortOrder: Number(form.get("sortOrder") ?? 0) || 0, ...(imageId !== undefined ? { imageId } : {}),
   };
@@ -73,11 +76,15 @@ async function deleteOffer(_: Result, form: FormData): Promise<Result> {
 }
 
 export default async function OffersPage() {
-  const { restaurants } = await adminContext("promos.edit");
-  const [offers, products] = await Promise.all([
+  const { restaurants, current } = await adminContext("promos.edit");
+  const [offers, menu, zones] = await Promise.all([
     db.offer.findMany({ orderBy: [{ active: "desc" }, { sortOrder: "asc" }, { createdAt: "desc" }] }),
-    db.product.findMany({ where: { archived: false }, orderBy: { name: "asc" }, select: { id: true, name: true, priceCents: true, variants: { orderBy: { sortOrder: "asc" }, select: { id: true, label: true, priceCents: true } } } }),
+    // Prix réels (surcharges du restaurant comprises), sans offre.
+    current ? loadMenu(current.id, { includeHidden: true, noOffers: true }) : Promise.resolve({ products: [], categories: [] }),
+    db.deliveryZone.findMany({ orderBy: [{ restaurantId: "asc" }, { name: "asc" }], include: { areas: { select: { city: true } }, restaurant: { select: { name: true } } } }),
   ]);
+  const products = [...menu.products].sort((a, b) => a.name.localeCompare(b.name, "fr"))
+    .map((p) => ({ id: p.id, name: p.name, priceCents: p.priceCents, variants: p.variants.map((v) => ({ id: v.id, label: v.label, priceCents: v.priceCents })) }));
   const imgs = new Map((await db.image.findMany({ where: { id: { in: offers.flatMap((o) => (o.imageId ? [o.imageId] : [])) } } })).map((i) => [i.id, i.files as ImageFiles]));
   const byId = new Map(products.map((p) => [p.id, p]));
   const day = (d: Date | null) => (d ? localDate(d) : "");
@@ -89,20 +96,7 @@ export default async function OffersPage() {
       <div><label className="label">Bandeau (facultatif)</label><input name="badge" defaultValue={o?.badge} className="input" placeholder="Offre du mardi" /></div>
       <div className="sm:col-span-2"><label className="label">Texte (contenu, conditions…)</label>
         <textarea name="description" defaultValue={o?.description} rows={3} className="input" placeholder={"3 sushis saumon, 3 sushis thon rouge, 6 makis…"} /></div>
-      <div><label className="label">Produit concerné</label>
-        <select name="productId" defaultValue={o?.productId ?? ""} className="input">
-          <option value="">— Aucun (simple annonce) —</option>
-          {products.map((p) => <option key={p.id} value={p.id}>{p.name} — {euros(p.priceCents)}</option>)}
-        </select></div>
-      <div><label className="label">Variante (si le produit en a)</label>
-        <select name="variantId" defaultValue={o?.variantId ?? ""} className="input">
-          <option value="">— Le produit lui-même —</option>
-          {products.filter((p) => p.variants.length).map((p) => (
-            <optgroup key={p.id} label={p.name}>{p.variants.map((v) => <option key={v.id} value={v.id}>{v.label} — {euros(v.priceCents)}</option>)}</optgroup>
-          ))}
-        </select></div>
-      <div><label className="label">Prix pendant l&apos;offre (€) — vide = prix inchangé</label>
-        <input name="price" defaultValue={o?.priceCents != null ? (o.priceCents / 100).toFixed(2).replace(".", ",") : ""} className="input" placeholder="24,90" /></div>
+      <OfferItemsEditor products={products} initial={o ? parseItems(o.items) : []} />
       <div><label className="label">Ordre d&apos;affichage</label><input name="sortOrder" type="number" defaultValue={o?.sortOrder ?? 0} className="input" /></div>
       <fieldset className="sm:col-span-2">
         <legend className="label">Jours (aucun coché = tous les jours)</legend>
@@ -119,6 +113,16 @@ export default async function OffersPage() {
       <div className="sm:col-span-2"><label className="label">Affiche / photo (sinon la photo du produit)</label>
         <input name="image" type="file" accept="image/*" className="input" />
         {o?.imageId && <label className="mt-1 flex items-center gap-2 text-sm"><input type="checkbox" name="removeImage" className="h-4 w-4" />Retirer l&apos;affiche</label>}</div>
+      {zones.length > 0 && (
+        <fieldset className="sm:col-span-2">
+          <legend className="label">Zones de livraison (aucune cochée = partout, en retrait, livraison et sur place)</legend>
+          <div className="flex flex-wrap gap-3">{zones.map((z) => (
+            <label key={z.id} className="flex items-center gap-2"><input type="checkbox" name="zoneIds" value={z.id} defaultChecked={o?.zoneIds.includes(z.id)} className="h-5 w-5" />
+              {z.name}{restaurants.length > 1 ? ` (${z.restaurant.name})` : ""} <span className="text-xs text-neutral-500">{z.areas.map((a) => a.city).join(", ")}</span></label>
+          ))}</div>
+          <p className="mt-1 text-xs text-neutral-500">Avec une zone cochée, l&apos;offre ne s&apos;applique qu&apos;aux livraisons dans cette zone.</p>
+        </fieldset>
+      )}
       {restaurants.length > 1 && (
         <fieldset className="sm:col-span-2">
           <legend className="label">Restaurants (aucun coché = tous)</legend>
@@ -141,7 +145,7 @@ export default async function OffersPage() {
       </p>
       <section className="card p-5"><h2 className="mb-3 text-3xl">Nouvelle offre</h2>{form()}</section>
       {offers.map((o) => {
-        const p = o.productId ? byId.get(o.productId) : undefined;
+        const items = parseItems(o.items);
         const img = o.imageId ? imageSources(imgs.get(o.imageId), 320) : null;
         return (
           <details key={o.id} className="card p-5">
@@ -149,7 +153,13 @@ export default async function OffersPage() {
               {img && <img src={img.src} alt="" className="h-14 w-14 rounded-lg object-cover" />}
               <span className="font-display text-3xl">{o.title}</span>
               {o.badge && <span className="chip bg-brand-100">{o.badge}</span>}
-              {o.priceCents != null && <span className="chip bg-green-100 text-green-900">{euros(o.priceCents)}{p ? ` au lieu de ${euros(p.variants.find((v) => v.id === o.variantId)?.priceCents ?? p.priceCents)}` : ""}</span>}
+              {items.slice(0, 3).map((i) => {
+                const p = byId.get(i.productId);
+                const reg = (i.variantId ? p?.variants.find((v) => v.id === i.variantId)?.priceCents : p?.priceCents) ?? null;
+                return <span key={`${i.productId}${i.variantId ?? ""}`} className="chip bg-green-100 text-green-900">{p?.name ?? "?"} {euros(i.priceCents)}{reg !== null && reg !== i.priceCents ? ` (au lieu de ${euros(reg)})` : ""}</span>;
+              })}
+              {items.length > 3 && <span className="chip bg-green-100 text-green-900">+{items.length - 3} produits</span>}
+              {o.zoneIds.length > 0 && <span className="chip bg-sky-100 text-sky-900">{o.zoneIds.length} zone{o.zoneIds.length > 1 ? "s" : ""}</span>}
               <span className={`chip ${o.active ? "bg-green-600 text-white" : "bg-neutral-200"}`}>{o.active ? "active" : "désactivée"}</span>
               <span className="text-sm text-neutral-600">{offerWhen(o)}</span>
             </summary>

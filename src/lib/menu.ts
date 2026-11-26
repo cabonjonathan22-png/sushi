@@ -2,7 +2,7 @@ import "server-only";
 import type { CatalogProduct } from "./cart";
 import { db } from "./db";
 import { imageSources, type ImageFiles } from "./images";
-import { offerValidAt, offerWhen, type OfferRule } from "./offer-rules";
+import { offerAppliesToZone, offerValidAt, offerWhen, toOfferRule, type OfferRule } from "./offer-rules";
 
 /**
  * Menu d'un restaurant : catalogue commun + surcharges du restaurant
@@ -31,9 +31,10 @@ export interface CurrentOffer {
   badge: string;
   description: string;
   when: string;
-  productId: string | null;
-  priceCents: number | null;
-  regularPriceCents: number | null;
+  /** Produits de l'offre : prix habituel et prix pendant l'offre. */
+  items: { productId: string; name: string; label: string; priceCents: number; regularPriceCents: number }[];
+  /** Zones de livraison concernées (vide = partout). */
+  zones: string[];
   image: { src: string; srcSet: string } | null;
   showOnHome: boolean;
 }
@@ -52,10 +53,10 @@ export interface Menu {
   products: MenuProduct[];
 }
 
-/** Offres valables à ce moment dans ce restaurant (jours, période, horaires). */
+/** Offres en cours à ce moment dans ce restaurant (jours, période, horaires), toutes zones confondues. */
 async function validOffers(restaurantId: string, at: Date): Promise<OfferRule[]> {
   const r = await db.restaurant.findUnique({ where: { id: restaurantId }, select: { timezone: true } });
-  const all = await db.offer.findMany({ where: { active: true }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] });
+  const all = (await db.offer.findMany({ where: { active: true }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] })).map(toOfferRule);
   return all.filter((o) => offerValidAt(o, at, restaurantId, r?.timezone ?? "Europe/Paris"));
 }
 
@@ -63,8 +64,9 @@ async function validOffers(restaurantId: string, at: Date): Promise<OfferRule[]>
  * Menu au moment `at` (par défaut : maintenant). Pour une commande, `at` = début du créneau choisi :
  * l'offre du mardi s'applique à une commande pour mardi, même passée la veille.
  */
-export async function loadMenu(restaurantId: string, opts: { includeHidden?: boolean; at?: Date } = {}): Promise<Menu> {
-  const offers = opts.includeHidden ? [] : await validOffers(restaurantId, opts.at ?? new Date());
+export async function loadMenu(restaurantId: string, opts: { includeHidden?: boolean; at?: Date; zoneId?: string | null; noOffers?: boolean } = {}): Promise<Menu> {
+  // Prix d'offre : en cours au moment `at` ; une offre réservée à des zones ne joue qu'en livraison dans l'une d'elles.
+  const offers = opts.includeHidden || opts.noOffers ? [] : (await validOffers(restaurantId, opts.at ?? new Date())).filter((o) => offerAppliesToZone(o, opts.zoneId));
   const [categories, products, overrides, variantOverrides] = await Promise.all([
     db.category.findMany({
       // Catégorie visible au catalogue ET non masquée dans ce restaurant.
@@ -106,18 +108,17 @@ export async function loadMenu(restaurantId: string, opts: { includeHidden?: boo
       })
       .filter((v) => opts.includeHidden || v.active);
     let priceCents = o?.priceCents ?? p.priceCents;
-    // Offre du moment : prix spécial sur le produit (ou sur une de ses variantes).
-    const offer = offers.find((x) => x.productId === p.id && x.priceCents !== null);
+    // Offres du moment : prix spécial sur le produit et/ou sur certaines de ses variantes (première offre trouvée).
     let offerInfo: MenuProduct["offer"] = null;
-    if (offer) {
-      const v = offer.variantId ? variants.find((x) => x.id === offer.variantId) : null;
-      if (v) {
-        offerInfo = { title: offer.title, badge: offer.badge, regularPriceCents: v.priceCents };
-        v.priceCents = offer.priceCents!;
-      } else if (!offer.variantId) {
-        offerInfo = { title: offer.title, badge: offer.badge, regularPriceCents: priceCents };
-        priceCents = offer.priceCents!;
+    for (const offer of offers) {
+      for (const item of offer.items.filter((i) => i.productId === p.id)) {
+        const v = item.variantId ? variants.find((x) => x.id === item.variantId) : null;
+        if (item.variantId && !v) continue;
+        offerInfo ??= { title: offer.title, badge: offer.badge, regularPriceCents: v ? v.priceCents : priceCents };
+        if (v) v.priceCents = item.priceCents;
+        else priceCents = item.priceCents;
       }
+      if (offerInfo) break;
     }
     const files = p.imageId ? images.get(p.imageId) : undefined;
     const firstCat = [...p.categories].sort((a, b) => a.category.sortOrder - b.category.sortOrder)[0];
@@ -180,24 +181,36 @@ export async function currentOffers(restaurantId: string, at = new Date()): Prom
   const tz = r?.timezone ?? "Europe/Paris";
   const offers = await validOffers(restaurantId, at);
   if (!offers.length) return [];
-  const menu = await loadMenu(restaurantId, { at });
-  const byId = new Map(menu.products.map((p) => [p.id, p]));
+  // Prix habituels (menu sans offre) pour afficher « au lieu de ».
+  const regular = await loadMenu(restaurantId, { at, noOffers: true });
+  const byId = new Map(regular.products.map((p) => [p.id, p]));
   const imgIds = offers.flatMap((o) => (o.imageId ? [o.imageId] : []));
-  const imgs = new Map((await db.image.findMany({ where: { id: { in: imgIds } } })).map((i) => [i.id, i.files as ImageFiles]));
+  const [imgRows, zones] = await Promise.all([
+    db.image.findMany({ where: { id: { in: imgIds } } }),
+    db.deliveryZone.findMany({ where: { id: { in: offers.flatMap((o) => o.zoneIds) } }, include: { areas: { select: { city: true } } } }),
+  ]);
+  const imgs = new Map(imgRows.map((i) => [i.id, i.files as ImageFiles]));
+  const zoneById = new Map(zones.map((z) => [z.id, z]));
   return offers
-    // Produit retiré / masqué dans ce restaurant : l'offre ne s'affiche pas.
-    .filter((o) => !o.productId || byId.has(o.productId))
     .map((o) => {
-      const p = o.productId ? byId.get(o.productId) : undefined;
-      const v = p && o.variantId ? p.variants.find((x) => x.id === o.variantId) : undefined;
+      // Produits retirés / masqués dans ce restaurant : ignorés.
+      const items = o.items.flatMap((i) => {
+        const p = byId.get(i.productId);
+        if (!p) return [];
+        const v = i.variantId ? p.variants.find((x) => x.id === i.variantId) : undefined;
+        if (i.variantId && !v) return [];
+        return [{ productId: p.id, name: p.name, label: v?.label ?? "", priceCents: i.priceCents, regularPriceCents: v?.priceCents ?? p.priceCents }];
+      });
+      const first = items[0] ? byId.get(items[0].productId) : undefined;
       return {
-        id: o.id, title: o.title, badge: o.badge, description: o.description, when: offerWhen(o, tz),
-        productId: o.productId, showOnHome: o.showOnHome,
-        priceCents: o.priceCents !== null && p ? (v?.priceCents ?? p.priceCents) : o.priceCents,
-        regularPriceCents: p?.offer?.regularPriceCents ?? null,
-        image: o.imageId ? imageSources(imgs.get(o.imageId), 640) : (p?.imageLarge ?? null),
+        id: o.id, title: o.title, badge: o.badge, description: o.description, when: offerWhen(o, tz), items, showOnHome: o.showOnHome,
+        zones: o.zoneIds.flatMap((id) => zoneById.get(id)?.areas.map((a) => a.city) ?? []),
+        image: o.imageId ? imageSources(imgs.get(o.imageId), 640) : (first?.imageLarge ?? null),
+        _skip: o.items.length > 0 && items.length === 0,
       };
-    });
+    })
+    .filter((o) => !o._skip)
+    .map(({ _skip, ...o }) => o);
 }
 
 export function catalogMap(menu: Menu): Map<string, CatalogProduct> {

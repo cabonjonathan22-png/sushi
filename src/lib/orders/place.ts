@@ -135,7 +135,7 @@ export async function placeOrder(raw: unknown, ctx: { ip: string; customerId?: s
   if (input.paymentMethod === "ONLINE_CARD" && !stripe) return fail("Le paiement en ligne est momentanément indisponible.", "STRIPE");
 
   // Prix : recalcul complet côté serveur.
-  const menu = await loadMenu(restaurant.id, { at: slot.start });
+  const menu = await loadMenu(restaurant.id, { at: slot.start, zoneId: zone?.id ?? null });
   const promo = input.promoCode ? await db.promoCode.findUnique({ where: { code: input.promoCode } }) : null;
   if (input.promoCode && !promo) return fail("Code promo inconnu.", "PROMO");
   const config = await readConfig();

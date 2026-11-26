@@ -44,7 +44,7 @@ export async function POST(req: Request) {
   const rewards = settings.enabled ? await activeRewards() : [];
   const chosen = customer && input.rewardId ? rewards.find((x) => x.id === input.rewardId) ?? null : null;
 
-  const catalog = catalogMap(await loadMenu(r.id, { at: input.slotStart ? new Date(input.slotStart) : undefined }));
+  const catalog = catalogMap(await loadMenu(r.id, { at: input.slotStart ? new Date(input.slotStart) : undefined, zoneId: zone?.id ?? null }));
   const ctx = {
     restaurantId: r.id, mode: input.mode, period: input.period, zone, pickupMinimumCents: r.pickupMinimumCents,
     noAlcoholDelivery: r.noAlcoholDelivery, promo, now: new Date(), pointsBalance: balance, extrasRule: extras,
