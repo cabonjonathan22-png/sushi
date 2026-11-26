@@ -39,7 +39,7 @@ export async function onStatusChanged(
 ) {
   const notify = (await readConfig()).orders.notifyStatuses as OrderStatus[];
   if (order.customerEmail && notify.includes(to)) {
-    await enqueue("email", { kind: "customerStatus", orderId: order.id }, tx);
+    await enqueue("email", { kind: "customerStatus", orderId: order.id, status: to }, tx);
   }
   const hooks = await tx.webhookEndpoint.findMany({ where: { restaurantId: order.restaurantId, active: true } });
   for (const w of hooks.filter((x) => x.events.includes("order.status_changed"))) {

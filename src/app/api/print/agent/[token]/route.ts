@@ -1,4 +1,5 @@
 import { encryptSecret, randomToken } from "@/lib/crypto";
+import { autoCompleteOrders } from "@/lib/orders/manage";
 import { db } from "@/lib/db";
 import { json, readJson } from "@/lib/http";
 import { renderEscPos } from "@/lib/print/escpos";
@@ -20,6 +21,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
   const info = (printer.agentInfo ?? {}) as { discovered?: unknown[]; uninstallRequestedAt?: string };
   // Première connexion du poste (aucun rapport) : il cherche tout de suite les imprimantes du réseau.
   const config = { address: printer.address, scan: !!printer.scanRequestedAt || !info.discovered, wait: await agentPollSeconds(printer), uninstall: !!info.uninstallRequestedAt };
+  await autoCompleteOrders().catch(() => 0); // commandes terminées toutes seules après leur créneau
   if (config.uninstall) return json({ job: null, config });
 
   // Ticket d'essai demandé depuis le back-office.

@@ -38,6 +38,10 @@ export const ConfigSchema = z.object({
     pendingPaymentMinutes: z.number().int().min(10).max(24 * 60).default(60),
     /** Quantité maximum d'un même produit sur une ligne. */
     maxLineQuantity: z.number().int().min(1).max(500).default(50),
+    /** Les commandes en cours passent « Terminées » toutes seules N minutes après la fin du créneau (0 = jamais). */
+    autoCompleteMinutes: z.number().int().min(0).max(1440).default(30),
+    /** Une commande « Prête » passe toute seule « En livraison » (livraison) puis « Terminée ». */
+    completeWhenReady: z.boolean().default(true),
   }).prefault({}),
   schedule: z.object({
     /** Les plages qui commencent avant cette heure sont « midi », les autres « soir ». */

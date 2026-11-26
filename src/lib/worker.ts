@@ -21,11 +21,11 @@ import { deliverWebhook } from "./webhooks";
  * les 3 secondes et fait le ménage périodique.
  */
 
-type EmailPayload = { kind: "customerConfirmation" | "restaurantNewOrder" | "customerStatus"; orderId: string; to?: string[] };
+type EmailPayload = { kind: "customerConfirmation" | "restaurantNewOrder" | "customerStatus"; orderId: string; to?: string[]; status?: string };
 
 const handlers: Record<JobType, JobHandler> = {
   async email(p) {
-    const { kind, orderId, to } = p as EmailPayload;
+    const { kind, orderId, to, status } = p as EmailPayload;
     const order = await loadOrder(orderId);
     if (!order) return;
     // Client : langue de sa commande. Restaurant : langue par défaut du site.
@@ -34,7 +34,8 @@ const handlers: Record<JobType, JobHandler> = {
     const ctx = { t: await getT(locale), locale, brand: settings?.brandName ?? "" };
     const mail = kind === "customerConfirmation" ? customerConfirmation(order, ctx)
       : kind === "restaurantNewOrder" ? restaurantNewOrder(order, ctx)
-      : customerStatusChange(order, ctx);
+      // Statut au moment du changement (la commande a pu avancer depuis, ex. « En livraison » puis « Terminée »).
+      : customerStatusChange(status ? { ...order, status: status as typeof order.status } : order, ctx);
     const replyTo = kind === "restaurantNewOrder" ? order.customerEmail : order.restaurant.email || undefined;
     await sendMail({ ...mail, to: kind === "restaurantNewOrder" ? (to ?? []) : order.customerEmail, replyTo });
   },
@@ -61,6 +62,7 @@ export async function drainJobs(): Promise<number> {
 export async function maintenance(): Promise<void> {
   await Promise.allSettled([refreshBizPrintJobs(), cancelAbandonedPayments(), purgeSessions(), purgeRateLimits(), anonymizeInactiveCustomers(), expireInactivePoints()]);
   await drainJobs();
+  await import("./orders/manage").then((m) => m.autoCompleteOrders()).catch((e) => console.error("[maintenance] terminer", e));
   // Clôture journalière automatique des journées terminées (comptabilité).
   await import("./accounting-db").then((m) => m.autoCloseDays()).then((d) => d.length && console.log("[maintenance] clôtures", d.join(", "))).catch((e) => console.error("[maintenance] clôture", e));
   // Traduction d'avance de la carte dans les langues proposées (dans la limite du quota du jour).

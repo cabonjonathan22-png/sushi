@@ -42,6 +42,8 @@ export async function saveConfigAction(_: Result, form: FormData): Promise<Resul
       notifyStatuses: form.getAll("notifyStatuses").map(String) as AppConfig["orders"]["notifyStatuses"],
       pendingPaymentMinutes: int(form, "pendingPaymentMinutes"),
       maxLineQuantity: int(form, "maxLineQuantity"),
+      autoCompleteMinutes: int(form, "autoCompleteMinutes"),
+      completeWhenReady: bool(form, "completeWhenReady"),
     },
     schedule: { lunchDinnerCutoff: str(form, "lunchDinnerCutoff") },
     printing: { deliveryCopies: int(form, "deliveryCopies"), chimeRepeatSeconds: int(form, "chimeRepeatSeconds") },

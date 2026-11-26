@@ -89,9 +89,11 @@ export default async function ConfigurationPage() {
         <Section title="Commandes">
           <Check name="autoAccept" label="Accepter automatiquement les commandes" on={c.orders.autoAccept} hint="Elles arrivent directement « Acceptées » ; la sonnerie et l'impression fonctionnent toujours." />
           <Check name="acceptToPreparing" label="Accepter = « En préparation » directement" on={c.orders.acceptToPreparing} hint="Une commande acceptée (à la main ou automatiquement) passe tout de suite « En préparation »." />
+          <Check name="completeWhenReady" label="« Prête » = terminée automatiquement" on={c.orders.completeWhenReady} hint="Une commande prête passe toute seule « En livraison » (e-mail au client) puis « Terminée » ; en retrait, directement « Terminée ». Les points de fidélité sont crédités." />
           <Check name="requireEmail" label="E-mail obligatoire" on={c.orders.requireEmail} hint="Sinon facultatif (pas d'e-mail de confirmation sans adresse)." />
           <Check name="allowNotes" label="Autoriser une note pour la cuisine" on={c.orders.allowNotes} />
           <div><label className="label" htmlFor="pp">Paiement en ligne non finalisé : annuler après (minutes)</label><input id="pp" name="pendingPaymentMinutes" type="number" min={10} max={1440} defaultValue={c.orders.pendingPaymentMinutes} className="input" /></div>
+          <div><label className="label" htmlFor="ac">Terminer les commandes automatiquement (minutes après la fin du créneau, 0 = jamais)</label><input id="ac" name="autoCompleteMinutes" type="number" min={0} max={1440} defaultValue={c.orders.autoCompleteMinutes} className="input" /><p className="mt-1 text-xs text-neutral-600">Plus besoin de cliquer « Terminée » : les points de fidélité sont crédités à ce moment-là.</p></div>
           <div><label className="label" htmlFor="mq">Quantité maximum d'un même produit</label><input id="mq" name="maxLineQuantity" type="number" min={1} max={500} defaultValue={c.orders.maxLineQuantity} className="input" /></div>
           <fieldset className="sm:col-span-2">
             <legend className="label">E-mail envoyé au client quand la commande passe à :</legend>

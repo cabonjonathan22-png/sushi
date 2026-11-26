@@ -66,12 +66,49 @@ async function setStatus(tx: Tx, orderId: string, wanted: OrderStatus, actor: Ac
   await onLoyaltyStatus(tx, updated, to);
   if (order.status === "PENDING_PAYMENT" && to === "NEW") await onOrderConfirmed(tx, updated);
   else await onStatusChanged(tx, updated, to);
+  // « Prête » enchaîne toute seule (Configuration) : livraison → « En livraison » (e-mail) → « Terminée » ;
+  // retrait / sur place → « Terminée » (l'e-mail « prête » est déjà parti). Points de fidélité crédités.
+  if ((to === "READY" || to === "OUT_FOR_DELIVERY") && (await readConfig()).orders.completeWhenReady) {
+    if (to === "READY" && updated.mode === "DELIVERY") return setStatus(tx, orderId, "OUT_FOR_DELIVERY", actor, "Départ en livraison automatique");
+    return setStatus(tx, orderId, "COMPLETED", { userId: null, label: "Système" }, "Terminée automatiquement");
+  }
   return updated;
 }
 
 export async function changeStatus(orderId: string, to: OrderStatus, actor: ActorInfo, note = "") {
   if (to === "CANCELLED" && !note.trim()) throw new OrderError("Indiquez le motif de l'annulation.");
   return db.$transaction((tx) => setStatus(tx, orderId, to, actor, note));
+}
+
+const g = globalThis as unknown as { __ysAutoComplete?: number };
+
+/**
+ * Commandes en cours dont le créneau est passé depuis `autoCompleteMinutes` : « Terminées »
+ * automatiquement (points de fidélité crédités). Appelé au fil des passages (écrans, poste
+ * d'impression, tâche planifiée) et au plus une fois par minute par serveur.
+ */
+export async function autoCompleteOrders(now = new Date()): Promise<number> {
+  if (g.__ysAutoComplete && now.getTime() - g.__ysAutoComplete < 60_000) return 0;
+  g.__ysAutoComplete = now.getTime();
+  const minutes = (await readConfig()).orders.autoCompleteMinutes;
+  if (!minutes) return 0;
+  const due = await db.order.findMany({
+    where: { status: { in: ["ACCEPTED", "PREPARING", "READY", "OUT_FOR_DELIVERY"] }, source: { not: "IMPORT_WP" }, slotEnd: { lt: new Date(now.getTime() - minutes * 60_000) } },
+    select: { id: true, status: true },
+    take: 200,
+  });
+  for (const o of due) {
+    await db.$transaction(async (tx) => {
+      // Verrou + revérification : un employé a pu la terminer ou l'annuler entre-temps.
+      await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${o.id} FOR UPDATE`;
+      const cur = await tx.order.findUniqueOrThrow({ where: { id: o.id } });
+      if (!["ACCEPTED", "PREPARING", "READY", "OUT_FOR_DELIVERY"].includes(cur.status)) return;
+      const updated = await tx.order.update({ where: { id: o.id }, data: { status: "COMPLETED", completedAt: now } });
+      await tx.orderStatusEvent.create({ data: { orderId: o.id, from: cur.status, to: "COMPLETED", actor: "Système", note: `Terminée automatiquement (${minutes} min après le créneau)` } });
+      await onLoyaltyStatus(tx, updated, "COMPLETED");
+    }).catch((e) => console.error("[auto-terminer]", o.id, e));
+  }
+  return due.length;
 }
 
 /** Retour à l'étape précédente (erreur de manipulation en cuisine). */
