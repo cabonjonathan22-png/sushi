@@ -44,7 +44,8 @@ export function renderEscPos(t: Ticket, cols: number, copies = 1): Buffer {
       switch (l.kind) {
         case "title":
         case "big":
-          cmd(ESC, 0x61, 1, ESC, 0x45, 1, GS, 0x21, l.kind === "title" ? 0x22 : 0x11);
+          // Tailles réduites : n° de commande en double (au lieu de triple), titres en double hauteur seulement.
+          cmd(ESC, 0x61, 1, ESC, 0x45, 1, GS, 0x21, l.kind === "title" ? 0x11 : 0x01);
           line(l.text);
           cmd(GS, 0x21, 0, ESC, 0x45, 0, ESC, 0x61, 0);
           break;
