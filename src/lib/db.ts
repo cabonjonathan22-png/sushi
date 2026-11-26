@@ -5,7 +5,8 @@ import { PrismaClient } from "@/generated/prisma/client";
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 function createClient() {
-  const url = process.env.DATABASE_URL;
+  // NEWDB_* : base de secours (nouvelle base Neon, 26/11/2026) prioritaire tant que les variables ne sont pas renommées.
+  const url = process.env.NEWDB_DATABASE_URL || process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL manquant (voir .env.example)");
   return new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
 }

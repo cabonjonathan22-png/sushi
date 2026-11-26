@@ -7,7 +7,7 @@ const run = (cmd, env = {}) => execSync(cmd, { stdio: "inherit", env: { ...proce
 
 run("npx prisma generate");
 
-const direct = process.env.DATABASE_URL_DIRECT || process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
+const direct = process.env.NEWDB_DATABASE_URL_UNPOOLED || process.env.DATABASE_URL_DIRECT || process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
 if (direct) {
   run("npx prisma migrate deploy", { DATABASE_URL: direct });
 } else {

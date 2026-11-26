@@ -13,7 +13,7 @@ export async function GET() {
     encryptionKey: !!process.env.APP_ENCRYPTION_KEY,
   };
   const fail = (database: string) => Response.json({ ok: false, database, config }, { status: 503, headers: { "Cache-Control": "no-store" } });
-  if (!process.env.DATABASE_URL) return fail("non configurée (DATABASE_URL absente)");
+  if (!process.env.NEWDB_DATABASE_URL && !process.env.DATABASE_URL) return fail("non configurée (DATABASE_URL absente)");
   try {
     await db.$queryRaw`SELECT 1`;
   } catch {
