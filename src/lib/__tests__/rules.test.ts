@@ -69,16 +69,16 @@ describe("créneaux et horaires", () => {
     const now = zonedTime("2026-10-17", "11:02");
     const days = computeSlots({ now, settings, hours, closures: [] });
     expect(days[0]!.date).toBe("2026-10-17");
-    expect(days[0]!.slots[0]!.label).toBe("11:30");
-    expect(days[0]!.slots.at(-1)!.label).toBe("21:15");
+    expect(days[0]!.slots[0]!.label).toBe("11h30-11h45");
+    expect(days[0]!.slots.at(-1)!.label).toBe("21h15-21h30");
     const soir = days[0]!.slots.find((s) => s.period === "DINNER")!;
-    expect(soir.label).toBe("18:00"); // 17:30 + 20 min = 17:50, aligné sur la grille de 15 min
+    expect(soir.label).toBe("18h00-18h15"); // 17:30 + 20 min = 17:50, aligné sur la grille de 15 min
   });
 
   it("ajoute le délai de livraison de la zone", () => {
     const now = zonedTime("2026-10-17", "11:02");
     const days = computeSlots({ now, settings, hours, closures: [], extraMinutes: 30 });
-    expect(days[0]!.slots[0]!.label).toBe("12:00");
+    expect(days[0]!.slots[0]!.label).toBe("12h00-12h15");
   });
 
   it("saute le lundi (fermé) et les fermetures exceptionnelles", () => {
@@ -106,7 +106,7 @@ describe("créneaux et horaires", () => {
     const now = zonedTime("2026-10-24", "22:00");
     const days = computeSlots({ now, settings, hours, closures: [] });
     const dimanche = days.find((d) => d.date === "2026-10-25")!;
-    expect(dimanche.slots[0]!.label).toBe("10:30");
+    expect(dimanche.slots[0]!.label).toBe("10h30-10h45");
     expect(dimanche.slots[0]!.start.toISOString()).toBe("2026-10-25T09:30:00.000Z"); // UTC+1
     expect(localDate(dimanche.slots[0]!.start)).toBe("2026-10-25");
   });

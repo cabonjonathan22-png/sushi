@@ -64,14 +64,21 @@ export function useLiveOrders(restaurantId: string, opts: { done?: number; onNew
 export function useChime() {
   const ctx = useRef<AudioContext | null>(null);
   const [enabled, setEnabled] = useState(false);
+  const on = useRef(false);
   const enable = () => {
     ctx.current ??= new AudioContext();
     void ctx.current.resume();
+    on.current = true;
     setEnabled(true);
+  };
+  /** Couper le son (la sonnerie s'arrête, y compris les rappels en attente). */
+  const disable = () => {
+    on.current = false;
+    setEnabled(false);
   };
   const play = useCallback(() => {
     const ac = ctx.current;
-    if (!ac) return;
+    if (!ac || !on.current) return;
     [0, 0.25, 0.5].forEach((t, i) => {
       const osc = ac.createOscillator();
       const gain = ac.createGain();
@@ -84,7 +91,7 @@ export function useChime() {
       osc.stop(ac.currentTime + t + 0.25);
     });
   }, []);
-  return { enabled, enable, play };
+  return { enabled, enable, disable, play };
 }
 
 /** Préférence locale à l'appareil (son, impression automatique…). */

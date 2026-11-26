@@ -2,7 +2,7 @@ import type { MessageKey } from "@/i18n/fr";
 import type { T } from "@/i18n/server";
 import { euros } from "./money";
 import type { FullOrder, OrderLineOption } from "./orders/load";
-import { formatDay, localDate, localHHMM } from "./time";
+import { formatDay, localDate, localHHMM, slotRange } from "./time";
 
 /**
  * Gabarits d'e-mails (HTML simple, compatible avec tous les clients mail).
@@ -19,7 +19,7 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 const appUrl = () => (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
 function slotText(o: FullOrder, c: MailContext): string {
-  return c.t("email.slot", { day: formatDay(localDate(o.slotStart), c.locale), time: localHHMM(o.slotStart) });
+  return c.t("email.slot", { day: formatDay(localDate(o.slotStart), c.locale), time: slotRange(o.slotStart, o.slotEnd) });
 }
 
 /** En-tête : nom de l'enseigne, dernier mot en couleur (comme sur le site). */
@@ -93,7 +93,7 @@ export function restaurantNewOrder(o: FullOrder, c: MailContext) {
 ${o.notes ? `<p style="background:#fff6e5;padding:10px;border-radius:6px">${esc(t("email.note", { note: o.notes }))}</p>` : ""}${linesTable(o, c)}
 ${button(url, t("email.openOrder"), true)}`);
   const text = `${t("email.newOrder", { n: o.dailyNumber, mode })} — ${slotText(o, c)}\n${o.customerName} ${o.customerPhone}\n${t("checkout.total")} ${euros(o.totalCents)}\n${url}`;
-  return { subject: `${t("email.newOrder", { n: o.dailyNumber, mode })} — ${localHHMM(o.slotStart)} — ${euros(o.totalCents)}`, html, text };
+  return { subject: `${t("email.newOrder", { n: o.dailyNumber, mode })} — ${slotRange(o.slotStart, o.slotEnd)} — ${euros(o.totalCents)}`, html, text };
 }
 
 const STATUS_MESSAGES = new Set(["ACCEPTED", "READY", "OUT_FOR_DELIVERY", "CANCELLED"]);

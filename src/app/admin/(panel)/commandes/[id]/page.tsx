@@ -10,7 +10,7 @@ import { loadOrder, type OrderLineOption } from "@/lib/orders/load";
 import { refundable } from "@/lib/orders/manage";
 import { getConfig } from "@/lib/config";
 import { can } from "@/lib/permissions";
-import { formatDateTime, formatDay, localDate, localHHMM } from "@/lib/time";
+import { formatDateTime, formatDay, localDate, localHHMM, slotRange } from "@/lib/time";
 
 export const metadata = { title: "Commande" };
 
@@ -42,7 +42,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
         <div className="space-y-6">
           <section className="card p-5">
             <h2 className="text-3xl">Client & créneau</h2>
-            <p className="mt-2 text-lg"><strong>{formatDay(localDate(order.slotStart))} à {localHHMM(order.slotStart)}</strong> ({order.period === "LUNCH" ? "midi" : "soir"})</p>
+            <p className="mt-2 text-lg"><strong>{formatDay(localDate(order.slotStart))}, {slotRange(order.slotStart, order.slotEnd)}</strong> ({order.period === "LUNCH" ? "midi" : "soir"})</p>
             <p className="mt-1">{order.customerName} — <a href={`tel:${order.customerPhone}`} className="font-semibold underline">{order.customerPhone}</a> — {order.customerEmail}</p>
             {order.mode === "DELIVERY" && (
               <div className="mt-3 rounded-xl bg-blue-50 p-3">

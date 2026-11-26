@@ -38,6 +38,12 @@ export function hhmmOf(minutes: number): string {
 }
 
 /** « 12:30 » à partir d'un instant, dans le fuseau. */
+/** Créneau « 20h00-20h30 » (heure seule si le créneau n'a pas de durée, ex. vente au comptoir). */
+export function slotRange(start: Date, end: Date | null | undefined, tz = PARIS): string {
+  const h = (d: Date) => localHHMM(d, tz).replace(":", "h");
+  return end && end.getTime() > start.getTime() ? `${h(start)}-${h(end)}` : h(start);
+}
+
 export function localHHMM(at: Date, tz = PARIS): string {
   const d = new TZDate(at.getTime(), tz);
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;

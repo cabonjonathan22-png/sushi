@@ -179,7 +179,8 @@ export async function placeOrder(raw: unknown, ctx: { ip: string; customerId?: s
 
   const online = input.paymentMethod === "ONLINE_CARD";
   // Acceptation automatique (Configuration) : la commande arrive directement « Acceptée ».
-  const firstStatus = online ? "PENDING_PAYMENT" : config.orders.autoAccept ? "ACCEPTED" : "NEW";
+  const accepted = config.orders.acceptToPreparing ? "PREPARING" : "ACCEPTED";
+  const firstStatus = online ? "PENDING_PAYMENT" : config.orders.autoAccept ? accepted : "NEW";
   const customerName = `${input.customer.firstName} ${input.customer.lastName}`;
 
   let pointsShortage = false;
@@ -209,7 +210,7 @@ export async function placeOrder(raw: unknown, ctx: { ip: string; customerId?: s
         trackingToken: randomToken(24),
         source: "WEB",
         status: firstStatus,
-        acceptedAt: firstStatus === "ACCEPTED" ? now : null,
+        acceptedAt: firstStatus === "ACCEPTED" || firstStatus === "PREPARING" ? now : null,
         paymentStatus: online ? "PENDING" : "UNPAID",
         paymentMethod: input.paymentMethod,
         mode: input.mode,
@@ -249,7 +250,7 @@ export async function placeOrder(raw: unknown, ctx: { ip: string; customerId?: s
             quantity: l.quantity, vatRate: l.vatRate, totalCents: l.totalCents, isAlcohol: l.isAlcohol, sortOrder: i,
           })),
         },
-        statusEvents: { create: { from: null, to: firstStatus, actor: "Client", note: firstStatus === "ACCEPTED" ? "Acceptation automatique" : "" } },
+        statusEvents: { create: { from: null, to: firstStatus, actor: "Client", note: firstStatus === "ACCEPTED" || firstStatus === "PREPARING" ? "Acceptation automatique" : "" } },
       },
     });
     if (cart.promoApplied) await tx.promoCode.update({ where: { code: cart.promoApplied }, data: { usedCount: { increment: 1 } } });

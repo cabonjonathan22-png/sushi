@@ -11,7 +11,7 @@ import type { MessageKey } from "@/i18n/fr";
 import { db } from "@/lib/db";
 import { euros } from "@/lib/money";
 import type { OrderLineOption } from "@/lib/orders/load";
-import { formatDay, localDate, localHHMM } from "@/lib/time";
+import { formatDay, localDate, localHHMM, slotRange } from "@/lib/time";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -61,7 +61,7 @@ export default async function TrackingPage({ params, searchParams }: { params: P
       <p className="text-sm font-semibold uppercase tracking-wider text-neutral-600">{t("track.order", { reference: o.reference })}</p>
       <h1 className="text-6xl leading-none">{t("track.number", { n: o.dailyNumber })}</h1>
       <p className="mt-2 text-lg">
-        {t("track.slot", { mode: t(`mode.${o.mode}`), day: formatDay(localDate(o.slotStart), locale), time: localHHMM(o.slotStart) })}
+        {t("track.slot", { mode: t(`mode.${o.mode}`), day: formatDay(localDate(o.slotStart), locale), time: slotRange(o.slotStart, o.slotEnd) })}
       </p>
 
       {o.status === "PENDING_PAYMENT" ? (

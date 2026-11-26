@@ -138,7 +138,9 @@ export function PosScreen(props: {
             className="w-20 rounded-xl bg-white/10 px-3 py-2 text-center font-bold placeholder:text-white/50" />
         )}
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          {!chime.enabled && <button type="button" onClick={chime.enable} className="rounded-xl bg-amber-400 px-3 py-2 font-bold text-ink">🔔 Son</button>}
+          {!chime.enabled
+            ? <button type="button" onClick={chime.enable} className="rounded-xl bg-amber-400 px-3 py-2 font-bold text-ink">🔔 Son</button>
+            : <button type="button" onClick={chime.disable} className="rounded-xl bg-white/10 px-3 py-2 font-bold">🔕</button>}
           <button type="button" onClick={() => setPanel("online")} className={`relative rounded-xl px-4 py-2 font-bold ${newOnline ? "animate-pulse bg-brand-600" : "bg-white/10"}`}>
             🌐 Commandes en ligne {online.length > 0 && <span className="ml-1 rounded-full bg-white px-2 text-ink">{online.length}</span>}
             <span className={`absolute -right-1 -top-1 h-3 w-3 rounded-full ${connected ? "bg-green-400" : "bg-red-500"}`} />

@@ -26,6 +26,8 @@ export const ConfigSchema = z.object({
   orders: z.object({
     /** Les commandes arrivent directement « Acceptées » (pas de clic « Accepter »). */
     autoAccept: z.boolean().default(false),
+    /** « Accepter » fait passer directement la commande « En préparation » (une étape de moins en cuisine). */
+    acceptToPreparing: z.boolean().default(false),
     /** E-mail obligatoire à la commande (sinon facultatif : pas d'e-mail de confirmation). */
     requireEmail: z.boolean().default(true),
     /** Note libre pour la cuisine autorisée. */

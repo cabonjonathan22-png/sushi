@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { setOrderStatus } from "@/app/admin/(panel)/commandes/actions";
+import { setOrderStatus, stepBackOrder } from "@/app/admin/(panel)/commandes/actions";
 import { MODE_LABELS, STATUS_LABELS } from "@/lib/catalog-constants";
-import { primaryNext, type OrderStatus } from "@/lib/order-status";
+import { previousStatus, primaryNext, type OrderStatus } from "@/lib/order-status";
 import { useChime, useLiveOrders } from "./live";
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" });
@@ -12,7 +12,8 @@ const dayLabel = (iso: string) => new Date(iso).toLocaleDateString("fr-FR", { we
 /** Écran cuisine / comptoir : plein écran, gros caractères, toucher une commande la fait avancer. */
 export function KitchenScreen({ restaurantId, restaurantName, canUpdate }: { restaurantId: string; restaurantName: string; canUpdate: boolean }) {
   const chime = useChime();
-  const { orders, connected, reload } = useLiveOrders(restaurantId, { onNew: () => chime.play() });
+  const { orders, connected, reload } = useLiveOrders(restaurantId, { onNew: () => chime.play(), done: 30 });
+  const back = (id: string) => start(async () => { const r = await stepBackOrder(id); if (r?.error) alert(r.error); await reload(); });
   const [pending, start] = useTransition();
   // Heure calculée uniquement dans le navigateur (évite un écart avec le rendu serveur).
   const [now, setNow] = useState<Date | null>(null);
@@ -23,6 +24,7 @@ export function KitchenScreen({ restaurantId, restaurantName, canUpdate }: { res
   }, []);
 
   const list = (orders ?? []).filter((o) => ["NEW", "ACCEPTED", "PREPARING", "READY"].includes(o.status));
+  const done = (orders ?? []).filter((o) => o.status === "COMPLETED").slice(-8).reverse();
   const lateMinutes = (iso: string) => (now ? Math.round((now.getTime() - new Date(iso).getTime()) / 60_000) : 0);
   const sameDay = (iso: string) => !!now && new Date(iso).toDateString() === now.toDateString();
 
@@ -31,7 +33,9 @@ export function KitchenScreen({ restaurantId, restaurantName, canUpdate }: { res
       <header className="mb-4 flex flex-wrap items-center gap-4">
         <h1 className="font-display text-5xl">{restaurantName} — cuisine</h1>
         <span className={`rounded-full px-3 py-1 text-sm font-bold ${connected ? "bg-green-700" : "bg-red-700"}`}>{connected ? "EN DIRECT" : "RECONNEXION…"}</span>
-        {!chime.enabled && <button type="button" onClick={chime.enable} className="rounded-xl bg-amber-400 px-4 py-2 font-bold text-ink">🔔 Activer le son</button>}
+        {!chime.enabled
+          ? <button type="button" onClick={chime.enable} className="rounded-xl bg-amber-400 px-4 py-2 font-bold text-ink">🔔 Activer le son</button>
+          : <button type="button" onClick={chime.disable} className="rounded-xl bg-white/10 px-4 py-2 font-bold">🔕 Couper le son</button>}
         <button type="button" className="ml-auto rounded-xl bg-white/10 px-4 py-2 font-bold" onClick={() => document.documentElement.requestFullscreen?.()}>Plein écran</button>
         <span className="font-display text-5xl">{now ? time(now.toISOString()) : ""}</span>
       </header>
@@ -44,7 +48,7 @@ export function KitchenScreen({ restaurantId, restaurantName, canUpdate }: { res
             const next = primaryNext(o.status as OrderStatus, o.mode);
             const late = lateMinutes(o.slotStart);
             return (
-              <li key={o.id}>
+              <li key={o.id} className="flex flex-col gap-1">
                 <button type="button" disabled={!canUpdate || !next || pending}
                   onClick={() => next && start(async () => { await setOrderStatus(o.id, next); await reload(); })}
                   className={`flex h-full w-full flex-col overflow-hidden rounded-2xl text-left ${o.status === "NEW" ? "bg-brand-700 ring-4 ring-brand-400" : o.status === "READY" ? "bg-green-800" : "bg-neutral-800"}`}>
@@ -65,10 +69,26 @@ export function KitchenScreen({ restaurantId, restaurantName, canUpdate }: { res
                   {o.notes && <p className="bg-amber-300 px-4 py-2 text-xl font-bold text-ink">📝 {o.notes}</p>}
                   {next && canUpdate && <p className="bg-white/10 px-4 py-3 text-center text-xl font-bold">Toucher → {STATUS_LABELS[next]}</p>}
                 </button>
+                {canUpdate && previousStatus(o.status as OrderStatus, o.mode) && (
+                  <button type="button" disabled={pending} onClick={() => back(o.id)}
+                    className="rounded-xl bg-white/10 px-4 py-2 text-lg font-bold text-neutral-200">↩ Retour : {STATUS_LABELS[previousStatus(o.status as OrderStatus, o.mode)!]}</button>
+                )}
               </li>
             );
           })}
         </ul>
+      )}
+
+      {canUpdate && done.length > 0 && (
+        <div className="mt-6 rounded-2xl bg-white/5 p-3">
+          <p className="mb-2 text-lg font-bold text-neutral-300">Terminées récemment (toucher pour la faire revenir)</p>
+          <div className="flex flex-wrap gap-2">
+            {done.map((o) => (
+              <button key={o.id} type="button" disabled={pending} onClick={() => back(o.id)}
+                className="rounded-xl bg-neutral-800 px-4 py-2 text-xl font-bold">↩ n° {o.dailyNumber} <span className="text-base font-normal text-neutral-400">{time(o.slotStart)}</span></button>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

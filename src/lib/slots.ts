@@ -95,7 +95,7 @@ export function computeSlots(q: SlotQuery): SlotDay[] {
         const end = new Date(start.getTime() + step * 60_000);
         const count = q.taken?.get(start.toISOString()) ?? 0;
         const full = settings.maxOrdersPerSlot !== null && count >= settings.maxOrdersPerSlot;
-        slots.push({ start, end, label: hhmmOf(m), period: r.period, full });
+        slots.push({ start, end, label: `${hhmmOf(m).replace(":", "h")}-${hhmmOf(m + step).replace(":", "h")}`, period: r.period, full });
       }
     }
     if (slots.length) days.push({ date, slots });

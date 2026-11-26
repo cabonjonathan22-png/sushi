@@ -329,7 +329,7 @@ export function Checkout({ restaurant, account, options = { requireEmail: true, 
                 return (
                   <div key={period} className="mt-4">
                     <p className="mb-2 text-sm font-semibold text-neutral-600">{period === "LUNCH" ? t("checkout.lunch") : t("checkout.dinner")}</p>
-                    <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                       {s.map((x) => (
                         <button key={x.start} type="button" disabled={x.full} onClick={() => setSlot(x)} aria-pressed={slot?.start === x.start}
                           className={`rounded-lg py-2.5 font-semibold ${slot?.start === x.start ? "bg-brand-600 text-white" : "bg-white ring-1 ring-neutral-300"} disabled:bg-neutral-100 disabled:text-neutral-400 disabled:line-through`}>

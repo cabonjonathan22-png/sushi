@@ -137,7 +137,7 @@ export async function sellAtCounter(raw: unknown, actor: { userId: string; label
   const receiptPrinter = input.receiptPrinterId
     ? await db.printer.findFirst({ where: { id: input.receiptPrinterId, restaurantId: restaurant.id, active: true, method: { in: [...RECEIPT_METHODS] } } })
     : null;
-  const status = input.sendToKitchen ? "ACCEPTED" : "COMPLETED";
+  const status = input.sendToKitchen ? ((await readConfig()).orders.acceptToPreparing ? "PREPARING" : "ACCEPTED") : "COMPLETED";
 
   const order = await db.$transaction(async (tx) => {
     // Un ticket à la fois par restaurant : numéro et chaînage sans trou ni croisement.

@@ -3,7 +3,8 @@ import { audit } from "../audit";
 import { readConfig } from "../config";
 import { db, type Tx } from "../db";
 import { onLoyaltyRefund, onLoyaltyStatus } from "../loyalty";
-import { canTransition, type OrderStatus } from "../order-status";
+import { canTransition, previousStatus, type OrderStatus } from "../order-status";
+import { localDate } from "../time";
 import { stripeFor } from "../payments/stripe";
 import { onOrderConfirmed, onStatusChanged } from "./notify";
 
@@ -27,27 +28,40 @@ const TIMESTAMP: Partial<Record<OrderStatus, "acceptedAt" | "readyAt" | "complet
   CANCELLED: "cancelledAt",
 };
 
-async function setStatus(tx: Tx, orderId: string, to: OrderStatus, actor: ActorInfo, note = "") {
+async function setStatus(tx: Tx, orderId: string, wanted: OrderStatus, actor: ActorInfo, note = "", back = false) {
   // Verrou de ligne : deux employés qui cliquent en même temps ne créent pas d'incohérence.
   const rows = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "Order" WHERE id = ${orderId} FOR UPDATE`;
   if (!rows.length) throw new OrderError("Commande introuvable.");
   const order = await tx.order.findUniqueOrThrow({ where: { id: orderId } });
+  // « Accepter » mène directement « En préparation » si la Configuration le demande.
+  const to: OrderStatus = !back && wanted === "ACCEPTED" && (await readConfig()).orders.acceptToPreparing && canTransition(order.status, "PREPARING", order.mode) ? "PREPARING" : wanted;
   if (order.status === to) return order;
-  if (!canTransition(order.status, to, order.mode)) {
+  if (back ? previousStatus(order.status, order.mode) !== to : !canTransition(order.status, to, order.mode)) {
     throw new OrderError(`Passage impossible de « ${order.status} » à « ${to} ».`);
   }
-  const ts = TIMESTAMP[to];
+  if (back && order.status === "COMPLETED") {
+    // Une journée clôturée (comptabilité) ne se rouvre pas.
+    const day = localDate(order.slotStart);
+    if (await tx.dailyClosure.findUnique({ where: { restaurantId_date: { restaurantId: order.restaurantId, date: day } } })) {
+      throw new OrderError("Cette journée est déjà clôturée : la commande ne peut plus revenir en arrière.");
+    }
+  }
+  const ts = back ? undefined : TIMESTAMP[to];
   const updated = await tx.order.update({
     where: { id: orderId },
     data: {
       status: to,
       ...(ts ? { [ts]: new Date() } : {}),
+      ...(to === "PREPARING" && !order.acceptedAt ? { acceptedAt: new Date() } : {}),
+      ...(back && order.status === "COMPLETED" ? { completedAt: null } : {}),
+      ...(back && order.status === "READY" ? { readyAt: null } : {}),
       ...(to === "CANCELLED" ? { cancelReason: note.slice(0, 300) } : {}),
     },
   });
-  await tx.orderStatusEvent.create({ data: { orderId, from: order.status, to, userId: actor.userId, actor: actor.label, note: note.slice(0, 300) } });
-  await audit({ userId: actor.userId, actor: actor.label, action: "order.status", entityType: "Order", entityId: orderId,
+  await tx.orderStatusEvent.create({ data: { orderId, from: order.status, to, userId: actor.userId, actor: actor.label, note: (back ? `Retour en arrière${note ? ` : ${note}` : ""}` : note).slice(0, 300) } });
+  await audit({ userId: actor.userId, actor: actor.label, action: back ? "order.status_back" : "order.status", entityType: "Order", entityId: orderId,
     restaurantId: order.restaurantId, data: { from: order.status, to, note }, ip: actor.ip }, tx);
+  if (back) return updated; // retour en arrière : ni e-mail au client, ni points
   // Fidélité : points gagnés à la remise, rendus / retirés à l'annulation.
   await onLoyaltyStatus(tx, updated, to);
   if (order.status === "PENDING_PAYMENT" && to === "NEW") await onOrderConfirmed(tx, updated);
@@ -58,6 +72,16 @@ async function setStatus(tx: Tx, orderId: string, to: OrderStatus, actor: ActorI
 export async function changeStatus(orderId: string, to: OrderStatus, actor: ActorInfo, note = "") {
   if (to === "CANCELLED" && !note.trim()) throw new OrderError("Indiquez le motif de l'annulation.");
   return db.$transaction((tx) => setStatus(tx, orderId, to, actor, note));
+}
+
+/** Retour à l'étape précédente (erreur de manipulation en cuisine). */
+export async function stepBack(orderId: string, actor: ActorInfo) {
+  return db.$transaction(async (tx) => {
+    const o = await tx.order.findUniqueOrThrow({ where: { id: orderId }, select: { status: true, mode: true } });
+    const prev = previousStatus(o.status, o.mode);
+    if (!prev) throw new OrderError("Pas d'étape précédente pour cette commande.");
+    return setStatus(tx, orderId, prev, actor, "", true);
+  });
 }
 
 /**
@@ -154,7 +178,7 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<void> {
       const order = await tx.order.findUniqueOrThrow({ where: { id: payment.orderId } });
       if (order.status === "PENDING_PAYMENT") {
         await setStatus(tx, order.id, "NEW", system, "Paiement en ligne confirmé");
-        if ((await readConfig()).orders.autoAccept) await setStatus(tx, order.id, "ACCEPTED", system, "Acceptation automatique");
+        if ((await readConfig()).orders.autoAccept) await setStatus(tx, order.id, "ACCEPTED", system, "Acceptation automatique"); // → « En préparation » si réglé
       }
       else if (order.status === "CANCELLED") {
         // Paiement arrivé après annulation automatique : signalé pour remboursement.

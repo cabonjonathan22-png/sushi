@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { actorOf, authorize } from "@/lib/admin";
 import { clientIp } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { changeStatus, OrderError, recordPayment, refundOrder } from "@/lib/orders/manage";
+import { changeStatus, OrderError, recordPayment, refundOrder, stepBack } from "@/lib/orders/manage";
 import { queueReprint } from "@/lib/orders/notify";
 import type { OrderStatus } from "@/lib/order-status";
 import { parseEuros } from "@/lib/money";
@@ -27,6 +27,18 @@ export async function setOrderStatus(orderId: string, to: OrderStatus, note = ""
     await changeStatus(orderId, to, actorOf(staff, await clientIp()), note);
     revalidatePath(`/admin/commandes/${orderId}`);
     return { ok: "Statut mis à jour." };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Erreur." };
+  }
+}
+
+/** Retour à l'étape précédente (écran cuisine). */
+export async function stepBackOrder(orderId: string): Promise<Result> {
+  try {
+    const staff = await authorize("orders.update", await orderRestaurant(orderId));
+    await stepBack(orderId, actorOf(staff, await clientIp()));
+    revalidatePath(`/admin/commandes/${orderId}`);
+    return { ok: "Commande revenue à l'étape précédente." };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Erreur." };
   }

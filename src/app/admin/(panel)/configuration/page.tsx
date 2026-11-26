@@ -88,6 +88,7 @@ export default async function ConfigurationPage() {
       <ActionForm action={saveConfigAction} className="space-y-6">
         <Section title="Commandes">
           <Check name="autoAccept" label="Accepter automatiquement les commandes" on={c.orders.autoAccept} hint="Elles arrivent directement « Acceptées » ; la sonnerie et l'impression fonctionnent toujours." />
+          <Check name="acceptToPreparing" label="Accepter = « En préparation » directement" on={c.orders.acceptToPreparing} hint="Une commande acceptée (à la main ou automatiquement) passe tout de suite « En préparation »." />
           <Check name="requireEmail" label="E-mail obligatoire" on={c.orders.requireEmail} hint="Sinon facultatif (pas d'e-mail de confirmation sans adresse)." />
           <Check name="allowNotes" label="Autoriser une note pour la cuisine" on={c.orders.allowNotes} />
           <div><label className="label" htmlFor="pp">Paiement en ligne non finalisé : annuler après (minutes)</label><input id="pp" name="pendingPaymentMinutes" type="number" min={10} max={1440} defaultValue={c.orders.pendingPaymentMinutes} className="input" /></div>

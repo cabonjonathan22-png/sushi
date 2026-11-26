@@ -54,6 +54,24 @@ export function primaryNext(from: OrderStatus, mode: Mode): OrderStatus | null {
   }
 }
 
+/** Étape précédente (bouton « Retour » de l'écran cuisine, en cas d'erreur de manipulation). */
+export function previousStatus(from: OrderStatus, mode: Mode): OrderStatus | null {
+  switch (from) {
+    case "ACCEPTED":
+      return "NEW";
+    case "PREPARING":
+      return "ACCEPTED";
+    case "READY":
+      return "PREPARING";
+    case "OUT_FOR_DELIVERY":
+      return "PREPARING";
+    case "COMPLETED":
+      return mode === "DELIVERY" ? "OUT_FOR_DELIVERY" : "READY";
+    default:
+      return null;
+  }
+}
+
 /** Statuts visibles sur l'écran « Commandes en cours » et en cuisine. */
 export const ACTIVE_STATUSES: OrderStatus[] = ["NEW", "ACCEPTED", "PREPARING", "READY", "OUT_FOR_DELIVERY"];
 

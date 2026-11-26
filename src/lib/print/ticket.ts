@@ -1,7 +1,7 @@
 import { MODE_LABELS, PAYMENT_METHOD_LABELS } from "../catalog-constants";
 import { euros } from "../money";
 import type { FullOrder, OrderLineOption } from "../orders/load";
-import { formatDay, localDate, localHHMM } from "../time";
+import { formatDay, localDate, slotRange } from "../time";
 
 /**
  * Modèle de ticket indépendant de l'imprimante. Chaque « rendu » (texte, Star Markup,
@@ -36,7 +36,7 @@ export function buildTicket(o: FullOrder, copyLabel?: string): Ticket {
   L.push({ kind: "title", text: `N° ${o.dailyNumber}` });
   L.push({ kind: "big", text: MODE_LABELS[o.mode].toUpperCase() });
   // Jour et heure en gros (« LUN. 20/10 19:30 ») : lisibles d'un coup d'œil, même en livraison.
-  L.push({ kind: "big", text: `${shortDay(o.slotStart)} ${localHHMM(o.slotStart)}` });
+  L.push({ kind: "big", text: `${shortDay(o.slotStart)} ${slotRange(o.slotStart, o.slotEnd)}` });
   L.push({ kind: "center", text: formatDay(localDate(o.slotStart)) });
   L.push({ kind: "rule" });
   if (o.mode === "DELIVERY") {

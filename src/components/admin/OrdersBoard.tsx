@@ -66,7 +66,7 @@ export function OrdersBoard({ restaurantId, canUpdate, defaultPaper, defaultCopi
         <span className={`chip ${connected ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>{connected ? "● En direct" : "○ Reconnexion…"}</span>
         {!chime.enabled ? (
           <button type="button" onClick={chime.enable} className="btn bg-amber-400 text-ink">🔔 Activer le son</button>
-        ) : <span className="chip bg-neutral-200">🔔 Son activé</span>}
+        ) : <button type="button" onClick={chime.disable} className="btn-ghost">🔕 Couper le son</button>}
         <details className="relative">
           <summary className="btn-ghost cursor-pointer list-none">🖨️ Impression</summary>
           <div className="absolute right-0 z-20 mt-2 w-72 space-y-3 rounded-2xl bg-white p-4 shadow-xl ring-1 ring-black/10">

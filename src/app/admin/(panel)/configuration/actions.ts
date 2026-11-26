@@ -36,6 +36,7 @@ export async function saveConfigAction(_: Result, form: FormData): Promise<Resul
     ...current,
     orders: {
       autoAccept: bool(form, "autoAccept"),
+      acceptToPreparing: bool(form, "acceptToPreparing"),
       requireEmail: bool(form, "requireEmail"),
       allowNotes: bool(form, "allowNotes"),
       notifyStatuses: form.getAll("notifyStatuses").map(String) as AppConfig["orders"]["notifyStatuses"],
