@@ -44,8 +44,12 @@ export function useLiveOrders(restaurantId: string, opts: { done?: number; onNew
       };
     };
     connect();
-    // Filet de sécurité si le flux temps réel est coupé (hébergement serverless, proxy…).
-    const poll = setInterval(() => reload().catch(() => {}), Number(process.env.NEXT_PUBLIC_ORDERS_POLL_SECONDS ?? 30) * 1000);
+    // Filet de sécurité si le flux temps réel est coupé (hébergement serverless, proxy…) :
+    // seulement quand le flux est coupé et l'écran visible (chaque rechargement interroge la base).
+    const poll = setInterval(() => {
+      if (document.hidden || es?.readyState === EventSource.OPEN) return;
+      reload().catch(() => {});
+    }, Number(process.env.NEXT_PUBLIC_ORDERS_POLL_SECONDS ?? 30) * 1000);
     return () => {
       es?.close();
       clearTimeout(retry);

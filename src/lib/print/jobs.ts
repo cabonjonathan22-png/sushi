@@ -95,12 +95,17 @@ export async function agentPollSeconds(p: { restaurantId: string; address: strin
   // Installation / réglage à distance en cours : le poste reste réactif 15 minutes.
   const info = (p.agentInfo ?? {}) as { discovered?: unknown; scannedAt?: string; downloadedAt?: string; lastTest?: { at?: string }; uninstallRequestedAt?: string };
   const at = (v?: string) => (v ? new Date(v) : null);
-  if (!p.address || !info.discovered || [p.testRequestedAt, p.scanRequestedAt, at(info.scannedAt), at(info.downloadedAt), at(info.lastTest?.at), at(info.uninstallRequestedAt)].some(recent)) return 3;
+  if ([p.testRequestedAt, p.scanRequestedAt, at(info.scannedAt), at(info.downloadedAt), at(info.lastTest?.at), at(info.uninstallRequestedAt)].some(recent)) return 3;
+  // Premier passage après l'installation (réseau pas encore exploré) : réactif.
+  if (!info.discovered) return 3;
   const r = await db.restaurant.findUnique({ where: { id: p.restaurantId }, select: { timezone: true, openingHours: true } });
-  if (!r?.openingHours.length) return 5;
+  // Sans imprimante choisie, rien à imprimer : passages espacés (chaque passage réveille la base de données).
+  if (!p.address) return 1800;
+  if (!r?.openingHours.length) return 10;
   const day = localDate(now, r.timezone);
   const wd = localWeekday(day);
   const m = minutesOf(localHHMM(now, r.timezone));
   const open = r.openingHours.some((h) => h.weekday === wd && m >= minutesOf(h.opens) - 60 && m <= minutesOf(h.closes) + 60);
-  return open ? 4 : 900;
+  // Hors service : toutes les 30 minutes, pour que la base de données puisse se mettre en veille (quota gratuit).
+  return open ? 4 : 1800;
 }
