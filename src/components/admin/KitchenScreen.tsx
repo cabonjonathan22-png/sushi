@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { setOrderStatus, stepBackOrder } from "@/app/admin/(panel)/commandes/actions";
 import { MODE_LABELS, STATUS_LABELS } from "@/lib/catalog-constants";
-import { previousStatus, primaryNext, type OrderStatus } from "@/lib/order-status";
+import { primaryNext, type OrderStatus } from "@/lib/order-status";
 import { useChime, useLiveOrders } from "./live";
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" });
@@ -31,6 +32,7 @@ export function KitchenScreen({ restaurantId, restaurantName, canUpdate }: { res
   return (
     <div className="min-h-dvh bg-neutral-950 p-4 text-white">
       <header className="mb-4 flex flex-wrap items-center gap-4">
+        <Link href="/admin" className="rounded-xl bg-white/10 px-4 py-3 text-xl font-bold">← Retour</Link>
         <h1 className="font-display text-5xl">{restaurantName} — cuisine</h1>
         <span className={`rounded-full px-3 py-1 text-sm font-bold ${connected ? "bg-green-700" : "bg-red-700"}`}>{connected ? "EN DIRECT" : "RECONNEXION…"}</span>
         {!chime.enabled
@@ -69,10 +71,6 @@ export function KitchenScreen({ restaurantId, restaurantName, canUpdate }: { res
                   {o.notes && <p className="bg-amber-300 px-4 py-2 text-xl font-bold text-ink">📝 {o.notes}</p>}
                   {next && canUpdate && <p className="bg-white/10 px-4 py-3 text-center text-xl font-bold">Toucher → {STATUS_LABELS[next]}</p>}
                 </button>
-                {canUpdate && previousStatus(o.status as OrderStatus, o.mode) && (
-                  <button type="button" disabled={pending} onClick={() => back(o.id)}
-                    className="rounded-xl bg-white/10 px-4 py-2 text-lg font-bold text-neutral-200">↩ Retour : {STATUS_LABELS[previousStatus(o.status as OrderStatus, o.mode)!]}</button>
-                )}
               </li>
             );
           })}
