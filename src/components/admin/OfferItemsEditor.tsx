@@ -39,6 +39,21 @@ export function OfferItemsEditor({ products, initial }: { products: Product[]; i
     .flatMap((p) => (p.variants.length
       ? p.variants.map((v) => ({ value: `${p.id}|${v.id}`, label: `${p.name} — ${v.label} (${eur(v.priceCents)})` }))
       : [{ value: p.id, label: `${p.name} (${eur(p.priceCents)})` }]));
+  const regularTotal = rows.reduce((a, r) => a + regular(r), 0);
+  const offerTotal = rows.reduce((a, r) => a + (parse(r.price) ?? 0), 0);
+  const [total, setTotal] = useState("");
+  /** Prix final global : réparti sur les produits au prorata de leur prix actuel (la somme tombe juste au centime). */
+  const applyTotal = (value: string) => {
+    setTotal(value);
+    const t = parse(value);
+    if (t === null || !rows.length || regularTotal <= 0) return;
+    const shares = rows.map((x) => (regular(x) * t) / regularTotal);
+    const floors = shares.map(Math.floor);
+    let rest = t - floors.reduce((a, b) => a + b, 0);
+    const order = shares.map((v, i) => [v - floors[i]!, i] as const).sort((a, b) => b[0] - a[0]);
+    for (const [, i] of order) { if (rest <= 0) break; floors[i]! += 1; rest -= 1; }
+    setRows((rs) => rs.map((x, i) => ({ ...x, price: toEuros(floors[i]!) })));
+  };
   const items = rows.flatMap((r) => {
     const c = parse(r.price);
     return c === null ? [] : [{ productId: r.productId, variantId: r.variantId, priceCents: c }];
@@ -72,6 +87,20 @@ export function OfferItemsEditor({ products, initial }: { products: Product[]; i
               );
             })}
           </tbody>
+          <tfoot>
+            <tr className="border-t-2 font-bold">
+              <td className="py-2 pr-2">Total</td>
+              <td className="py-2 pr-2">{eur(regularTotal)}</td>
+              <td className="py-2 pr-2" colSpan={2}>
+                <span className="flex flex-wrap items-center gap-2">
+                  <input value={total || toEuros(offerTotal)} onChange={(e) => applyTotal(e.target.value)} onBlur={() => setTotal("")}
+                    inputMode="decimal" className="input w-28 font-bold" aria-label="Prix final global de l'offre" /> €
+                  {offerTotal < regularTotal && <span className="text-xs text-green-700">−{eur(regularTotal - offerTotal)}</span>}
+                </span>
+                <span className="block text-xs font-normal text-neutral-500">Prix final global : tapez-le ici, il est réparti automatiquement sur les produits (chaque ligne reste modifiable).</span>
+              </td>
+            </tr>
+          </tfoot>
         </table>
       )}
       <div className="flex flex-wrap gap-2">
